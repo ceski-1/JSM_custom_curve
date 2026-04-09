@@ -59,21 +59,6 @@ public:
 
 	float getSetting(SettingID index);
 
-	template<>
-	FloatXY getSetting<FloatXY>(SettingID index);
-
-	template<>
-	GyroSettings getSetting<GyroSettings>(SettingID index);
-
-	template<>
-	Color getSetting<Color>(SettingID index);
-
-	template<>
-	AdaptiveTriggerSetting getSetting<AdaptiveTriggerSetting>(SettingID index);
-
-	template<>
-	AxisSignPair getSetting<AxisSignPair>(SettingID index);
-
 	void getSmoothedGyro(float x, float y, float length, float bottomThreshold, float topThreshold, int maxSamples, float &outX, float &outY);
 	void applyGyroDecaySmoothing(float rawX, float rawY, float deltaTime, float smoothingTime, float threshold, float &outX, float &outY);
 	void disableGyroDecaySmoothing();
@@ -186,6 +171,21 @@ private:
 	vector<DstState> _triggerState; // State of analog triggers when skip mode is active
 	vector<deque<float>> _prevTriggerPosition;
 };
+
+template<>
+FloatXY JoyShock::getSetting<FloatXY>(SettingID index);
+
+template<>
+GyroSettings JoyShock::getSetting<GyroSettings>(SettingID index);
+
+template<>
+Color JoyShock::getSetting<Color>(SettingID index);
+
+template<>
+AdaptiveTriggerSetting JoyShock::getSetting<AdaptiveTriggerSetting>(SettingID index);
+
+template<>
+AxisSignPair JoyShock::getSetting<AxisSignPair>(SettingID index);
 
 template<typename E>
 optional<E> JoyShock::getSettingAtChord(SettingID id, ButtonID chord)
