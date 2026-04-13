@@ -57,7 +57,6 @@ bool devicesCalibrating = false;
 unordered_map<int, shared_ptr<JoyShock>> handle_to_joyshock;
 std::mutex handle_to_joyshock_mutex;
 
-int input_pipe_fd[2];
 int triggerCalibrationStep = 0;
 
 static void UpdateIgnoredGyroDevices()
@@ -3421,18 +3420,6 @@ int __stdcall wWinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLi
 #else
 int main(int argc, char *argv[])
 {
-#if !defined(_WIN32)
-	if (pipe(input_pipe_fd) == -1)
-	{
-		perror("pipe");
-		exit(EXIT_FAILURE);
-	}
-	if (dup2(input_pipe_fd[0], STDIN_FILENO) == -1)
-	{
-		perror("dup2");
-		exit(EXIT_FAILURE);
-	}
-#endif
 	static_cast<void>(argc);
 	static_cast<void>(argv);
 	void *trayIconData = nullptr;

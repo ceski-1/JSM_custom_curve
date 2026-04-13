@@ -612,29 +612,16 @@ BOOL ConsoleCtrlHandler(DWORD)
 };
 
 // just setting up the console with standard stuff
-void initConsole(std::function<void()>)
+void initConsole()
 {
 	static std::thread consoleForwardThread([](){
-		std::cout << "[DEBUG] consoleForwardThread started" << std::endl;
 		std::string line;
-		while (true)
+		while (std::getline(std::cin, line))
 		{
-			if (!std::getline(std::cin, line))
-			{
-				std::cout << "[DEBUG] consoleForwardThread: EOF or error on cin" << std::endl;
-				break;
-			}
-
-			std::cout << "[DEBUG] consoleForwardThread: read line from cin: " << line << std::endl;
-
-			// Forward input to input_pipe_fd[1], mimicking WriteToConsole
-			{
-				std::lock_guard<std::mutex> lock(commandQueueMutex);
-				commandQueue.push(Command{line, CommandSource::CONSOLE});
-				commandQueueCV.notify_one();
-			}
+			std::lock_guard<std::mutex> lock(commandQueueMutex);
+			commandQueue.push(Command{line, CommandSource::CONSOLE});
+			commandQueueCV.notify_one();
 		}
-		std::cout << "[DEBUG] consoleForwardThread exiting" << std::endl;
 	});
 }
 
@@ -802,31 +789,6 @@ void HideConsole()
 
 void ShowConsole()
 {
-}
-void initConsole() {
-	static std::thread ttyForwardThread([](){
-		FILE* tty = fopen("/dev/tty", "r");
-		if (!tty) {
-			perror("fopen /dev/tty");
-			return;
-		}
-		char* lineptr = nullptr;
-		size_t n = 0;
-		while (true) {
-			ssize_t read = getline(&lineptr, &n, tty);
-			if (read == -1) {
-				break;
-			}
-
-			{
-				std::lock_guard<std::mutex> lock(commandQueueMutex);
-				commandQueue.push(Command{std::string(lineptr, read), CommandSource::CONSOLE});
-				commandQueueCV.notify_one();
-			}
-		}
-		free(lineptr);
-		fclose(tty);
-	});
 }
 
 bool ClearConsole() {

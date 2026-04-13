@@ -24,12 +24,9 @@ struct Command {
 #endif
 // Setup the input pipe for console input 
 #ifndef _WIN32
-extern int input_pipe_fd[2];
-
 extern std::queue<Command>& commandQueue;
 extern std::mutex& commandQueueMutex;
 extern std::condition_variable& commandQueueCV;
-
 #endif
 
 
@@ -61,7 +58,6 @@ BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType);
 
 // just setting up the console with standard stuff
 void initConsole();
-void initConsole(std::function<void()>);
 #ifndef _WIN32
 void initFifoCommandListener();
 #endif
