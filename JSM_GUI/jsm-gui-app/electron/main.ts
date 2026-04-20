@@ -402,11 +402,11 @@ function stopTelemetryListener() {
 }
 
 async function tryInjectConsoleCommand(command: string) {
-  if (process.platform !== 'win32') {
-    return false
-  }
   if (!jsmProcess || !jsmProcess.pid) {
     return false
+  }
+  if (process.platform !== 'win32') {
+    return tryInjectLinuxCommand(command)
   }
   try {
     await fs.access(CONSOLE_INJECTOR)
@@ -437,11 +437,20 @@ async function tryInjectConsoleCommand(command: string) {
 }
 
 async function runConsoleCommandWithOutput(command: string) {
-  if (process.platform !== 'win32') {
-    return { success: false, output: '' }
-  }
   if (!jsmProcess || !jsmProcess.pid) {
     return { success: false, output: '' }
+  }
+  if (process.platform !== 'win32') {
+    const success = await tryInjectLinuxCommand(command)
+    if (!success) return { success: false, output: '' }
+    return new Promise<{ success: boolean; output: string }>(resolve => {
+      const onData = (chunk: Buffer) => {
+        const line = chunk.toString().split('\n')[0]
+        jsmProcess?.stdout?.off('data', onData)
+        resolve({ success: true, output: line })
+      }
+      jsmProcess?.stdout?.on('data', onData)
+    })
   }
   try {
     await fs.access(CONSOLE_INJECTOR)
@@ -477,6 +486,19 @@ async function runConsoleCommandWithOutput(command: string) {
   })
 }
 
+const FIFO_PATH = '/tmp/jsm_command_fifo'
+
+async function tryInjectLinuxCommand(command: string): Promise<boolean> {
+  try {
+    await fs.access(FIFO_PATH)
+    await fs.appendFile(FIFO_PATH, command + '\n', 'utf8')
+    return true
+  } catch (err) {
+    await writeLog(`Linux FIFO command failed: ${String(err)}`)
+    return false
+  }
+}
+
 function launchJoyShockMapper(calibrationSeconds = 5) {
   if (jsmProcess) {
     return Promise.resolve()
@@ -486,7 +508,7 @@ function launchJoyShockMapper(calibrationSeconds = 5) {
       const proc = spawn(JSM_EXECUTABLE, [], {
         cwd: BIN_DIR,
         windowsHide: true,
-        stdio: ['pipe', 'ignore', 'ignore'],
+        stdio: ['pipe', process.platform !== 'win32' ? 'pipe' : 'ignore', 'ignore'],
       })
       jsmProcess = proc
       proc.once('error', err => {
