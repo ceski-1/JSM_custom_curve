@@ -441,7 +441,7 @@ async function runConsoleCommandWithOutput(command: string) {
     return { success: false, output: '' }
   }
   if (process.platform !== 'win32') {
-    const success = await tryInjectLinuxCommand(command)
+    const success = tryInjectLinuxCommand(command)
     if (!success) return { success: false, output: '' }
     return new Promise<{ success: boolean; output: string }>(resolve => {
       const onData = (chunk: Buffer) => {
@@ -486,17 +486,12 @@ async function runConsoleCommandWithOutput(command: string) {
   })
 }
 
-const FIFO_PATH = '/tmp/jsm_command_fifo'
-
-async function tryInjectLinuxCommand(command: string): Promise<boolean> {
-  try {
-    await fs.access(FIFO_PATH)
-    await fs.appendFile(FIFO_PATH, command + '\n', 'utf8')
-    return true
-  } catch (err) {
-    await writeLog(`Linux FIFO command failed: ${String(err)}`)
+function tryInjectLinuxCommand(command: string): boolean {
+  if (!jsmProcess?.stdin) {
     return false
   }
+  jsmProcess.stdin.write(command + '\n')
+  return true
 }
 
 function launchJoyShockMapper(calibrationSeconds = 5) {

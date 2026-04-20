@@ -3420,6 +3420,8 @@ int __stdcall wWinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLi
 #else
 int main(int argc, char *argv[])
 {
+	std::cout.setf(std::ios::unitbuf);
+	setvbuf(stdout, nullptr, _IONBF, 0);
 	static_cast<void>(argc);
 	static_cast<void>(argv);
 	void *trayIconData = nullptr;
