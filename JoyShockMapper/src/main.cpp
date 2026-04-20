@@ -55,8 +55,8 @@ vector<pair<int, int>> g_ignoreGyroVidPid;
 unique_ptr<PollingThread> minimizeThread;
 bool devicesCalibrating = false;
 unordered_map<int, shared_ptr<JoyShock>> handle_to_joyshock;
+std::mutex handle_to_joyshock_mutex;
 
-int input_pipe_fd[2];
 int triggerCalibrationStep = 0;
 
 static void UpdateIgnoredGyroDevices()
@@ -170,7 +170,11 @@ struct TOUCH_POINT
 
 void touchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, float delta_time)
 {
-
+	shared_ptr<JoyShock> js;
+	{
+		std::lock_guard<std::mutex> guard(handle_to_joyshock_mutex);
+		js = handle_to_joyshock[jcHandle];
+	}
 	// if (current.t0Down || previous.t0Down)
 	//{
 	//	DisplayTouchInfo(newState.t0Down ? newState.t0Id : prevState.t0Id,
@@ -185,7 +189,6 @@ void touchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 	//	  prevState.t1Down ? optional<FloatXY>({ prevState.t1X, prevState.t1Y }) : nullopt);
 	//}
 
-	shared_ptr<JoyShock> js = handle_to_joyshock[jcHandle];
 	int tpSizeX, tpSizeY;
 	if (!js || jsl->GetTouchpadDimension(jcHandle, tpSizeX, tpSizeY) == false)
 		return;
@@ -426,8 +429,11 @@ void calibrateTriggers(shared_ptr<JoyShock> jc)
 
 void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE lastState, IMU_STATE imuState, IMU_STATE lastImuState, float deltaTime)
 {
-
-	shared_ptr<JoyShock> jc = handle_to_joyshock[jcHandle];
+	shared_ptr<JoyShock> jc;
+	{
+		std::lock_guard<std::mutex> guard(handle_to_joyshock_mutex);
+		jc = handle_to_joyshock[jcHandle];
+	}
 	if (jc == nullptr)
 		return;
 	jc->_context->callback_lock.lock();
@@ -1612,6 +1618,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 
 void connectDevices(bool mergeJoycons = true)
 {
+	std::lock_guard<std::mutex> guard(handle_to_joyshock_mutex);
 	handle_to_joyshock.clear();
 	this_thread::sleep_for(100ms);
 	int numConnected = jsl->ConnectDevices();
@@ -1845,9 +1852,12 @@ bool do_CALCULATE_REAL_WORLD_CALIBRATION(string_view argument)
 bool do_FINISH_GYRO_CALIBRATION()
 {
 	COUT << "Finishing continuous calibration for all devices\n";
-	for (auto iter = handle_to_joyshock.begin(); iter != handle_to_joyshock.end(); ++iter)
 	{
-		iter->second->_motion->PauseContinuousCalibration();
+		std::lock_guard<std::mutex> guard(handle_to_joyshock_mutex);
+		for (auto iter = handle_to_joyshock.begin(); iter != handle_to_joyshock.end(); ++iter)
+		{
+			iter->second->_motion->PauseContinuousCalibration();
+		}
 	}
 	devicesCalibrating = false;
 	return true;
@@ -1856,10 +1866,13 @@ bool do_FINISH_GYRO_CALIBRATION()
 bool do_RESTART_GYRO_CALIBRATION()
 {
 	COUT << "Restarting continuous calibration for all devices\n";
-	for (auto iter = handle_to_joyshock.begin(); iter != handle_to_joyshock.end(); ++iter)
 	{
-		iter->second->_motion->ResetContinuousCalibration();
-		iter->second->_motion->StartContinuousCalibration();
+		std::lock_guard<std::mutex> guard(handle_to_joyshock_mutex);
+		for (auto iter = handle_to_joyshock.begin(); iter != handle_to_joyshock.end(); ++iter)
+		{
+			iter->second->_motion->ResetContinuousCalibration();
+			iter->second->_motion->StartContinuousCalibration();
+		}
 	}
 	devicesCalibrating = true;
 	return true;
@@ -1868,9 +1881,12 @@ bool do_RESTART_GYRO_CALIBRATION()
 bool do_SET_MOTION_STICK_NEUTRAL()
 {
 	COUT << "Setting neutral motion stick orientation...\n";
-	for (auto iter = handle_to_joyshock.begin(); iter != handle_to_joyshock.end(); ++iter)
 	{
-		iter->second->set_neutral_quat = true;
+		std::lock_guard<std::mutex> guard(handle_to_joyshock_mutex);
+		for (auto iter = handle_to_joyshock.begin(); iter != handle_to_joyshock.end(); ++iter)
+		{
+			iter->second->set_neutral_quat = true;
+		}
 	}
 	return true;
 }
@@ -3404,18 +3420,6 @@ int __stdcall wWinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLi
 #else
 int main(int argc, char *argv[])
 {
-#if !defined(_WIN32)
-	if (pipe(input_pipe_fd) == -1)
-	{
-		perror("pipe");
-		exit(EXIT_FAILURE);
-	}
-	if (dup2(input_pipe_fd[0], STDIN_FILENO) == -1)
-	{
-		perror("dup2");
-		exit(EXIT_FAILURE);
-	}
-#endif
 	static_cast<void>(argc);
 	static_cast<void>(argv);
 	void *trayIconData = nullptr;
@@ -3442,6 +3446,8 @@ int main(int argc, char *argv[])
 	// The pipe is used to receive commands from the console
 	// to the main thread
 	initFifoCommandListener();
+	// Initialize X11 error handler early to prevent GTK from crashing on X11 errors
+	InitializeX11ErrorHandler();
 	#endif
 	COUT_BOLD << "Welcome to JoyShockMapper version " << version << "!\n";
 	// if (whitelister) COUT << "JoyShockMapper was successfully whitelisted!\n";
@@ -3531,11 +3537,18 @@ int main(int argc, char *argv[])
 	connectDevices();
 	jsl->SetCallback(&joyShockPollCallback);
 	jsl->SetTouchCallback(&touchCallback);
+	
+#ifndef _WIN32
+	// On Linux, skip tray icon creation to avoid GTK issues in headless environments
+	// Tray icons require a working display server and window manager
+	COUT << "Tray icon disabled on Linux.\n";
+#else
 	tray.reset(TrayIcon::getNew(trayIconData, &beforeShowTrayMenu));
 	if (tray)
 	{
 		tray->Show();
 	}
+#endif
 
 	do_RESET_MAPPINGS(&commandRegistry); // OnReset.txt
 	if (commandRegistry.loadConfigFile("OnStartup.txt"))
@@ -3585,5 +3598,12 @@ int main(int argc, char *argv[])
 	LocalFree(argv);
 #endif
 	cleanUp();
+#ifndef _WIN32
+	// On Linux, use _exit() to skip global destructors
+	// This prevents std::terminate from being called by destructors of global objects
+	// that may have threads still running
+	_exit(0);
+#else
 	return 0;
+#endif
 }

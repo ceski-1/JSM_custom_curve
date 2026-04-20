@@ -406,5 +406,147 @@ WORD nameToKey(string_view name)
 	{
 		return GYRO_OFF_BIND;
 	}
+	// Xbox virtual controller buttons
+	if (name.compare("X_UP") == 0)
+	{
+		return X_UP;
+	}
+	if (name.compare("X_DOWN") == 0)
+	{
+		return X_DOWN;
+	}
+	if (name.compare("X_LEFT") == 0)
+	{
+		return X_LEFT;
+	}
+	if (name.compare("X_RIGHT") == 0)
+	{
+		return X_RIGHT;
+	}
+	if (name.compare("X_LB") == 0)
+	{
+		return X_LB;
+	}
+	if (name.compare("X_RB") == 0)
+	{
+		return X_RB;
+	}
+	if (name.compare("X_X") == 0)
+	{
+		return X_X;
+	}
+	if (name.compare("X_A") == 0)
+	{
+		return X_A;
+	}
+	if (name.compare("X_Y") == 0)
+	{
+		return X_Y;
+	}
+	if (name.compare("X_B") == 0)
+	{
+		return X_B;
+	}
+	if (name.compare("X_LS") == 0)
+	{
+		return X_LS;
+	}
+	if (name.compare("X_RS") == 0)
+	{
+		return X_RS;
+	}
+	if (name.compare("X_BACK") == 0)
+	{
+		return X_BACK;
+	}
+	if (name.compare("X_START") == 0)
+	{
+		return X_START;
+	}
+	if (name.compare("X_GUIDE") == 0)
+	{
+		return X_GUIDE;
+	}
+	if (name.compare("X_LT") == 0)
+	{
+		return X_LT;
+	}
+	if (name.compare("X_RT") == 0)
+	{
+		return X_RT;
+	}
+	// PlayStation virtual controller buttons (aliases)
+	if (name.compare("PS_UP") == 0)
+	{
+		return PS_UP;
+	}
+	if (name.compare("PS_DOWN") == 0)
+	{
+		return PS_DOWN;
+	}
+	if (name.compare("PS_LEFT") == 0)
+	{
+		return PS_LEFT;
+	}
+	if (name.compare("PS_RIGHT") == 0)
+	{
+		return PS_RIGHT;
+	}
+	if (name.compare("PS_L1") == 0)
+	{
+		return PS_L1;
+	}
+	if (name.compare("PS_R1") == 0)
+	{
+		return PS_R1;
+	}
+	if (name.compare("PS_SQUARE") == 0)
+	{
+		return PS_SQUARE;
+	}
+	if (name.compare("PS_CROSS") == 0)
+	{
+		return PS_CROSS;
+	}
+	if (name.compare("PS_TRIANGLE") == 0)
+	{
+		return PS_TRIANGLE;
+	}
+	if (name.compare("PS_CIRCLE") == 0)
+	{
+		return PS_CIRCLE;
+	}
+	if (name.compare("PS_L3") == 0)
+	{
+		return PS_L3;
+	}
+	if (name.compare("PS_R3") == 0)
+	{
+		return PS_R3;
+	}
+	if (name.compare("PS_SHARE") == 0)
+	{
+		return PS_SHARE;
+	}
+	if (name.compare("PS_OPTIONS") == 0)
+	{
+		return PS_OPTIONS;
+	}
+	if (name.compare("PS_HOME") == 0)
+	{
+		return PS_HOME;
+	}
+	if (name.compare("PS_PAD_CLICK") == 0)
+	{
+		return PS_PAD_CLICK;
+	}
+	if (name.compare("PS_L2") == 0)
+	{
+		return PS_L2;
+	}
+	if (name.compare("PS_R2") == 0)
+	{
+		return PS_R2;
+	}
 	return 0x00;
 }

@@ -15,6 +15,16 @@
 #include <cstring>
 #include <span>
 
+#ifdef __linux__
+#include <fcntl.h>
+#include <unistd.h>
+#include <linux/input.h>
+#include <sys/ioctl.h>
+#include <dirent.h>
+#include <libevdev/libevdev.h>
+#include <libevdev/libevdev-uinput.h>
+#endif
+
 typedef struct
 {
 	Uint8 ucEnableBits1;              /* 0 */
@@ -559,7 +569,26 @@ public:
 		SDL_free(_joysticksArray);
 		int count = 0;
 		_joysticksArray = SDL_GetJoysticks(&count);
-		return count;
+
+		// Filter out JSM's own virtual controllers to prevent reconnection loops
+		// We filter by VID/PID because the kernel overrides our device name
+		int realCount = 0;
+		for (int i = 0; i < count; i++)
+		{
+			uint16_t vid = SDL_GetJoystickVendorForID(_joysticksArray[i]);
+			uint16_t pid = SDL_GetJoystickProductForID(_joysticksArray[i]);
+
+			// Skip JSM Virtual Controllers (VID 0x1209 = pid.codes for open source)
+			// PID 0x4a53 = "JS" (JSM Xbox), PID 0x4a54 = "JT" (JSM DS4)
+			bool isVirtualController = (vid == 0x1209 && (pid == 0x4a53 || pid == 0x4a54));
+
+			if (!isVirtualController)
+			{
+				realCount++;
+			}
+		}
+
+		return realCount;
 	}
 
 	int GetDeviceCount() override
@@ -580,13 +609,29 @@ public:
 			delete iter->second;
 			iter = _controllerMap.erase(iter);
 		}
-		for (int i = 0; i < size; i++)
+
+		int deviceIndex = 0;
+		for (int i = 0; i < size && deviceIndex < size; i++)
 		{
+			// Skip JSM's own virtual controllers by VID/PID
+			uint16_t vid = SDL_GetJoystickVendorForID(_joysticksArray[i]);
+			uint16_t pid = SDL_GetJoystickProductForID(_joysticksArray[i]);
+
+			// Skip JSM Virtual Controllers (VID 0x1209 = pid.codes for open source)
+			// PID 0x4a53 = "JS" (JSM Xbox), PID 0x4a54 = "JT" (JSM DS4)
+			bool isVirtualController = (vid == 0x1209 && (pid == 0x4a53 || pid == 0x4a54));
+
+			if (isVirtualController)
+			{
+				continue;
+			}
+
 			ControllerDevice *device = new ControllerDevice(_joysticksArray[i]);
 			if (device->isValid())
 			{
-				deviceHandleArray[i] = i + 1;
-				_controllerMap[deviceHandleArray[i]] = device;
+				deviceHandleArray[deviceIndex] = deviceIndex + 1;
+				_controllerMap[deviceHandleArray[deviceIndex]] = device;
+				deviceIndex++;
 			}
 			else
 			{
@@ -594,6 +639,13 @@ public:
 				delete device;
 			}
 		}
+
+		// Fill remaining slots with -1
+		for (int i = deviceIndex; i < size; i++)
+		{
+			deviceHandleArray[i] = -1;
+		}
+
 		return int(_controllerMap.size());
 	}
 

@@ -24,9 +24,18 @@
 #include <mutex>
 #include <condition_variable>
 
-std::queue<Command> commandQueue;
-std::mutex commandQueueMutex;
-std::condition_variable commandQueueCV;
+// Heap allocate and never delete to prevent destruction during program exit
+// The FIFO thread is detached and may still be running when globals are destroyed
+static std::queue<Command>* commandQueuePtr = new std::queue<Command>();
+static std::mutex* commandQueueMutexPtr = new std::mutex();
+static std::condition_variable* commandQueueCVPtr = new std::condition_variable();
+
+// Provide global references for compatibility
+std::queue<Command>& commandQueue = *commandQueuePtr;
+std::mutex& commandQueueMutex = *commandQueueMutexPtr;
+std::condition_variable& commandQueueCV = *commandQueueCVPtr;
+
+static std::atomic<bool> fifoThreadShouldExit{ false };
 #include <termios.h>
 #include <dlfcn.h>
 
@@ -47,6 +56,16 @@ static int (*XFetchName)(void *, X11Window, char **);
 static X11Atom (*XInternAtom)(void *, const char *, int);
 static int (*XGetWindowProperty)(void *, X11Window, X11Atom, long, long, int, X11Atom, X11Atom *, int *, unsigned long *, unsigned long *, unsigned char **);
 static int (*XFree)(void *);
+static int (*XSetErrorHandler)(int (*handler)(void *, void *));
+static int (*XSync)(void *, int);
+
+// X11 error handler to prevent crashes on invalid windows
+static std::atomic<bool> x11ErrorOccurred{ false };
+static int X11ErrorHandler(void *, void *)
+{
+	x11ErrorOccurred = true;
+	return 0; // Return value is ignored
+}
 
 // Windows' mouse speed settings translate non-linearly to speed.
 // Thankfully, the mappings are available here:
@@ -593,33 +612,20 @@ BOOL ConsoleCtrlHandler(DWORD)
 };
 
 // just setting up the console with standard stuff
-void initConsole(std::function<void()>)
+void initConsole()
 {
 	static std::thread consoleForwardThread([](){
-		std::cout << "[DEBUG] consoleForwardThread started" << std::endl;
 		std::string line;
-		while (true)
+		while (std::getline(std::cin, line))
 		{
-			if (!std::getline(std::cin, line))
-			{
-				std::cout << "[DEBUG] consoleForwardThread: EOF or error on cin" << std::endl;
-				break;
-			}
-
-			std::cout << "[DEBUG] consoleForwardThread: read line from cin: " << line << std::endl;
-
-			// Forward input to input_pipe_fd[1], mimicking WriteToConsole
-			{
-				std::lock_guard<std::mutex> lock(commandQueueMutex);
-				commandQueue.push(Command{line, CommandSource::CONSOLE});
-				commandQueueCV.notify_one();
-			}
+			std::lock_guard<std::mutex> lock(commandQueueMutex);
+			commandQueue.push(Command{line, CommandSource::CONSOLE});
+			commandQueueCV.notify_one();
 		}
-		std::cout << "[DEBUG] consoleForwardThread exiting" << std::endl;
 	});
 }
 
-std::tuple<std::string, std::string> GetActiveWindowName()
+static void InitializeX11()
 {
 	if (X11Display == nullptr)
 	{
@@ -633,11 +639,29 @@ std::tuple<std::string, std::string> GetActiveWindowName()
 			XInternAtom = reinterpret_cast<decltype(XInternAtom)>(::dlsym(libX11, "XInternAtom"));
 			XGetWindowProperty = reinterpret_cast<decltype(XGetWindowProperty)>(::dlsym(libX11, "XGetWindowProperty"));
 			XFree = reinterpret_cast<decltype(XFree)>(::dlsym(libX11, "XFree"));
+			XSetErrorHandler = reinterpret_cast<decltype(XSetErrorHandler)>(::dlsym(libX11, "XSetErrorHandler"));
+			XSync = reinterpret_cast<decltype(XSync)>(::dlsym(libX11, "XSync"));
 
 			X11Display = XOpenDisplay(nullptr);
 			_NET_WM_PID = XInternAtom(X11Display, "_NET_WM_PID", true);
+			
+			// Set up error handler to prevent crashes on X11 errors
+			if (XSetErrorHandler)
+			{
+				XSetErrorHandler(X11ErrorHandler);
+			}
 		}
 	}
+}
+
+void InitializeX11ErrorHandler()
+{
+	InitializeX11();
+}
+
+std::tuple<std::string, std::string> GetActiveWindowName()
+{
+	InitializeX11();
 
 	std::tuple<std::string, std::string> result;
 
@@ -652,17 +676,38 @@ std::tuple<std::string, std::string> GetActiveWindowName()
 
 		focusedWindowExecutableName[0] = '\0';
 		XGetInputFocus(X11Display, &focusedWindow, &revert);
-		if (focusedWindow > 0)
+		// Check for valid window (None = 0, PointerRoot = 1 are not valid windows)
+		if (focusedWindow > 1)
 		{
+			// Reset error flag before attempting X11 operations
+			x11ErrorOccurred = false;
+			
 			XFetchName(X11Display, focusedWindow, &focusedWindowName);
+			
+			// Sync to process any pending errors
+			if (XSync)
+			{
+				XSync(X11Display, 0);
+			}
+			
+			// Only proceed if no error occurred
+			if (!x11ErrorOccurred)
+			{
+				X11Atom type;
+				int format;
+				unsigned long itemCount;
+				unsigned long bytesAfter;
 
-			X11Atom type;
-			int format;
-			unsigned long itemCount;
-			unsigned long bytesAfter;
-
-			XGetWindowProperty(X11Display, focusedWindow, _NET_WM_PID, 0, 1, false, 0, &type, &format, &itemCount, &bytesAfter, &processPID);
-			if (processPID != nullptr)
+				XGetWindowProperty(X11Display, focusedWindow, _NET_WM_PID, 0, 1, false, 0, &type, &format, &itemCount, &bytesAfter, &processPID);
+				
+				// Sync again to catch any errors from XGetWindowProperty
+				if (XSync)
+				{
+					XSync(X11Display, 0);
+				}
+			}
+			
+			if (processPID != nullptr && !x11ErrorOccurred)
 			{
 				const auto pid = *reinterpret_cast<unsigned long *>(processPID);
 				XFree(processPID);
@@ -745,31 +790,6 @@ void HideConsole()
 void ShowConsole()
 {
 }
-void initConsole() {
-	static std::thread ttyForwardThread([](){
-		FILE* tty = fopen("/dev/tty", "r");
-		if (!tty) {
-			perror("fopen /dev/tty");
-			return;
-		}
-		char* lineptr = nullptr;
-		size_t n = 0;
-		while (true) {
-			ssize_t read = getline(&lineptr, &n, tty);
-			if (read == -1) {
-				break;
-			}
-
-			{
-				std::lock_guard<std::mutex> lock(commandQueueMutex);
-				commandQueue.push(Command{std::string(lineptr, read), CommandSource::CONSOLE});
-				commandQueueCV.notify_one();
-			}
-		}
-		free(lineptr);
-		fclose(tty);
-	});
-}
 
 bool ClearConsole() {
     return true;
@@ -777,6 +797,8 @@ bool ClearConsole() {
 
 void ReleaseConsole()
 {
+	// Signal the FIFO thread to exit
+	fifoThreadShouldExit = true;
 }
 
 void UnhideConsole() {
@@ -821,7 +843,7 @@ void initFifoCommandListener()
             return;
         }
 
-        while (true) {
+        while (!fifoThreadShouldExit) {
             char* lineptr = nullptr;
             size_t n = 0;
             ssize_t read_len = getline(&lineptr, &n, fifo_file);

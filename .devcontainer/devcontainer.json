@@ -1,0 +1,11 @@
+{
+  "name": "jsm_custom_curve-dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "jetbrains": {
+      "backend": "CLion"
+    }
+  }
+}
