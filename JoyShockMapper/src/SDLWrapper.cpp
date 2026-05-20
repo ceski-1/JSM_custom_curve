@@ -843,8 +843,8 @@ public:
 		case JS_TYPE_FLYDIGI_APEX5:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;  // M1 back button (top right)
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;   // M2 back button (top left)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M3 back button (bottom left)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M4 back button (bottom right)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M3 back button (bottom right)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M4 back button (bottom left)
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC2) ? 1ULL << JSOFFSET_LMINI : 0;       // LM mini shoulder button
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC3) ? 1ULL << JSOFFSET_RMINI : 0;       // RM mini shoulder button
 			break;
@@ -857,8 +857,8 @@ public:
 		case JS_TYPE_FLYDIGI_VADER3_PRO:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;  // M1 back button (top right)
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;   // M2 back button (top left)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M3 back button (bottom left)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M4 back button (bottom right)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M3 back button (bottom right)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M4 back button (bottom left)
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC2) ? 1ULL << JSOFFSET_MISC1 : 0;       // C face button
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC3) ? 1ULL << JSOFFSET_MISC2 : 0;       // Z face button
 			break;
