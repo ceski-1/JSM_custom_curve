@@ -1543,7 +1543,7 @@ void JoyShock::processStick(float stickX, float stickY, Stick &stick, float mous
 					returnDeadzone2 = angleBasedDeadzone(angleEquivalent, returningDeadzone, returningCutoff);
 				}
 			}
-			float returnDeadzone = min({ returnDeadzone1, returnDeadzone2 });
+			float returnDeadzone = min(returnDeadzone1, returnDeadzone2);
 			outputX *= returnDeadzone;
 			outputY *= returnDeadzone;
 			if (returnDeadzone == 0.f)
