@@ -48,9 +48,9 @@ public:
 	// These two large functions are defined further down
 	void processStick(float stickX, float stickY, Stick &stick, float mouseCalibrationFactor, float deltaTime, bool &anyStickInput, bool &lockMouse, float &camSpeedX, float &camSpeedY);
 
-	void handleTouchStickChange(TouchStick &ts, bool down, short movX, short movY, float delta_time);
-	void handleLeftTouchStickChange(LeftTouchStick &ts, bool down, short movX, short movY, float delta_time);
-	void handleRightTouchStickChange(RightTouchStick &ts, bool down, short movX, short movY, float delta_time);
+	void handleTouchStickChange(TouchStick &ts, bool down, float movX, float movY, float delta_time);
+	void handleLeftTouchStickChange(LeftTouchStick &ts, bool down, float movX, float movY, float delta_time);
+	void handleRightTouchStickChange(RightTouchStick &ts, bool down, float movX, float movY, float delta_time);
 
 	bool hasVirtualController();
 

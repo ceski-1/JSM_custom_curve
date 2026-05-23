@@ -1626,7 +1626,7 @@ void JoyShock::processStick(float stickX, float stickY, Stick &stick, float mous
 	}
 }
 
-void JoyShock::handleTouchStickChange(TouchStick &ts, bool down, short movX, short movY, float delta_time)
+void JoyShock::handleTouchStickChange(TouchStick &ts, bool down, float movX, float movY, float delta_time)
 {
 	float stickX = down ? clamp<float>((ts._currentLocation.x() + movX) / getSetting(SettingID::TOUCH_STICK_RADIUS), -1.f, 1.f) : 0.f;
 	float stickY = down ? clamp<float>((ts._currentLocation.y() - movY) / getSetting(SettingID::TOUCH_STICK_RADIUS), -1.f, 1.f) : 0.f;
@@ -1666,7 +1666,7 @@ void JoyShock::handleTouchStickChange(TouchStick &ts, bool down, short movX, sho
 	ts._prevDown = down;
 }
 
-void JoyShock::handleLeftTouchStickChange(LeftTouchStick &ts, bool down, short movX, short movY, float delta_time)
+void JoyShock::handleLeftTouchStickChange(LeftTouchStick &ts, bool down, float movX, float movY, float delta_time)
 {
 	float stickX = down ? clamp<float>((ts._currentLocation.x() + movX) / getSetting(SettingID::LTP_STICK_RADIUS), -1.0f, 1.0f) : 0.0f;
 	float stickY = down ? clamp<float>((ts._currentLocation.y() - movY) / getSetting(SettingID::LTP_STICK_RADIUS), -1.0f, 1.0f) : 0.0f;
@@ -1701,7 +1701,7 @@ void JoyShock::handleLeftTouchStickChange(LeftTouchStick &ts, bool down, short m
 	ts._prevDown = down;
 }
 
-void JoyShock::handleRightTouchStickChange(RightTouchStick &ts, bool down, short movX, short movY, float delta_time)
+void JoyShock::handleRightTouchStickChange(RightTouchStick &ts, bool down, float movX, float movY, float delta_time)
 {
 	float stickX = down ? clamp<float>((ts._currentLocation.x() + movX) / getSetting(SettingID::RTP_STICK_RADIUS), -1.0f, 1.0f) : 0.0f;
 	float stickY = down ? clamp<float>((ts._currentLocation.y() - movY) / getSetting(SettingID::RTP_STICK_RADIUS), -1.0f, 1.0f) : 0.0f;

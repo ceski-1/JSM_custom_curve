@@ -822,10 +822,14 @@ public:
 			switch (_controllerMap[deviceId]->_ctrlr_type)
 			{
 			case JS_TYPE_DS4:
-			case JS_TYPE_DS:
 				// Matching SDL resolution
 				sizeX = 1920;
 				sizeY = 920;
+				break;
+			case JS_TYPE_DS:
+				// Matching SDL resolution
+				sizeX = 1920;
+				sizeY = 1070;
 				break;
 			case JS_TYPE_STEAM_CONTROLLER:
 				// Steam Controller (2015) has dual 40 mm trackpads, but the

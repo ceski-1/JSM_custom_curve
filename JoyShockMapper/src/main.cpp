@@ -137,15 +137,15 @@ struct TOUCH_POINT
 			posY = newState->y();
 			if (prevState)
 			{
-				movX = int16_t((newState->x() - prevState->x()) * tpSize.x()); // Relative movement in unit
-				movY = int16_t((newState->y() - prevState->y()) * tpSize.y());
+				movX = (newState->x() - prevState->x()) * tpSize.x(); // Relative movement in unit
+				movY = (newState->y() - prevState->y()) * tpSize.y();
 			}
 		}
 	}
 	float posX = -1.f;
 	float posY = -1.f;
-	short movX = 0;
-	short movY = 0;
+	float movX = 0.f;
+	float movY = 0.f;
 	inline bool isDown()
 	{
 		return posX >= 0.f && posX <= 1.f && posY >= 0.f && posY <= 1.f;
