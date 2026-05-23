@@ -183,6 +183,8 @@ inline bool operator!=(const AdaptiveTriggerSetting &lhs, const AdaptiveTriggerS
 #define JSMASK_MISC6 0x100000000
 #define JSMASK_LTP_CAPTURE 0x200000000
 #define JSMASK_RTP_CAPTURE 0x400000000
+#define JSMASK_LGRIP 0x800000000
+#define JSMASK_RGRIP 0x1000000000
 
 #define JSOFFSET_UP 0
 #define JSOFFSET_DOWN 1
@@ -223,6 +225,8 @@ inline bool operator!=(const AdaptiveTriggerSetting &lhs, const AdaptiveTriggerS
 #define JSOFFSET_MISC6 32
 #define JSOFFSET_LTP_CAPTURE 33
 #define JSOFFSET_RTP_CAPTURE 34
+#define JSOFFSET_LGRIP 35
+#define JSOFFSET_RGRIP 36
 
 // PS5 Player maps for the DS Player Lightbar
 #define DS5_PLAYER_1 = 4

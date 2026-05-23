@@ -73,6 +73,8 @@ enum class ButtonID
 
 	LTOUCH,          // Left stick capacitive touch
 	RTOUCH,          // Right stick capacitive touch
+	LGRIP,           // Left grip sense (Steam Controller)
+	RGRIP,           // Right grip sense (Steam Controller)
 
 	LMINI,           // Left mini shoulder button
 	RMINI,           // Right mini shoulder button

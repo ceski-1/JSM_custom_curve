@@ -53,6 +53,8 @@ const map<ButtonID, string> buttonHelpMap{
 	{ ButtonID::TRING, "Touch ring binding, either inner or outer." },
 	{ ButtonID::LTOUCH, "Left stick capacitive touch" },
 	{ ButtonID::RTOUCH, "Right stick capacitive touch" },
+	{ ButtonID::LGRIP, "Left grip sense (Steam Controller)" },
+	{ ButtonID::RGRIP, "Right grip sense (Steam Controller)" },
 	{ ButtonID::LMINI, "Left mini shoulder button" },
 	{ ButtonID::RMINI, "Right mini shoulder button" },
 	{ ButtonID::MISC1, "Additional button that varies by controller" },

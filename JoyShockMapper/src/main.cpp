@@ -1693,7 +1693,8 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));      // Right back grip button
 			break;
 		case JS_TYPE_STEAM_CONTROLLER_TRITON:
-			// TODO: Left/right grip sense
+			jc->handleButtonChange(ButtonID::LGRIP, buttons & (1ULL << JSOFFSET_LGRIP)); // Left grip sense
+			jc->handleButtonChange(ButtonID::RGRIP, buttons & (1ULL << JSOFFSET_RGRIP)); // Right grip sense
 			// Fall through.
 		case JS_TYPE_STEAM_DECK:
 			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));                  // L4 back button

@@ -983,7 +983,8 @@ public:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;    // Left back grip button
 			break;
 		case JS_TYPE_STEAM_CONTROLLER_TRITON:
-			// TODO: Left/right grip sense
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_LEFT_GRIP) ? 1ULL << JSOFFSET_LGRIP : 0;    // Left grip sense
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_RIGHT_GRIP) ? 1ULL << JSOFFSET_RGRIP : 0;   // Right grip sense
 			// Fall through.
 		case JS_TYPE_STEAM_DECK:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_MISC1 : 0;              // QAM button ("..." button)
