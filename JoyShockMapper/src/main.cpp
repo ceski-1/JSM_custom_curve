@@ -1635,10 +1635,9 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));        // R4 back button
 			jc->handleButtonChange(ButtonID::LSR, buttons & (1ULL << JSOFFSET_FNL));       // M1 button below left stick
 			jc->handleButtonChange(ButtonID::RSL, buttons & (1ULL << JSOFFSET_FNR));       // M2 button below right stick
-			// TODO: Left/right capacitive touch sticks
-			//jc->handleButtonChange(ButtonID::LTOUCH, buttons & (1ULL << JSOFFSET_LTOUCH)); // Left stick capacitive touch
-			//jc->handleButtonChange(ButtonID::RTOUCH, buttons & (1ULL << JSOFFSET_RTOUCH)); // Right stick capacitive touch
 			jc->handleButtonChange(ButtonID::MISC1, buttons & (1ULL << JSOFFSET_MISC1));   // QAM button ("..." button)
+			jc->handleButtonChange(ButtonID::LTOUCH, buttons & (1ULL << JSOFFSET_LTOUCH)); // Left stick capacitive touch
+			jc->handleButtonChange(ButtonID::RTOUCH, buttons & (1ULL << JSOFFSET_RTOUCH)); // Right stick capacitive touch
 			break;
 		case JS_TYPE_G7_PRO_8K:
 			jc->handleButtonChange(ButtonID::LMINI, buttons & (1ULL << JSOFFSET_LMINI));     // L5 mini shoulder button
@@ -1697,7 +1696,6 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 			// TODO: Left/right grip sense
 			// Fall through.
 		case JS_TYPE_STEAM_DECK:
-			// TODO: Left/right capacitive touch sticks
 			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));                  // L4 back button
 			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));                  // R4 back button
 			jc->handleButtonChange(ButtonID::LSR, buttons & (1ULL << JSOFFSET_FNL));                 // L5 back button
@@ -1705,6 +1703,8 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 			jc->handleButtonChange(ButtonID::MISC1, buttons & (1ULL << JSOFFSET_MISC1));             // QAM button ("..." button)
 			jc->handleButtonChange(ButtonID::LTP_CAPTURE, buttons & (1ULL << JSOFFSET_LTP_CAPTURE)); // Left trackpad click
 			jc->handleButtonChange(ButtonID::RTP_CAPTURE, buttons & (1ULL << JSOFFSET_RTP_CAPTURE)); // Right trackpad click
+			jc->handleButtonChange(ButtonID::LTOUCH, buttons & (1ULL << JSOFFSET_LTOUCH));           // Left stick capacitive touch
+			jc->handleButtonChange(ButtonID::RTOUCH, buttons & (1ULL << JSOFFSET_RTOUCH));           // Right stick capacitive touch
 			// Left/right trackpad touch triggers
 			{
 				const float left_triggerpos = GetTrackpadTrigger(jc, buttons, true);

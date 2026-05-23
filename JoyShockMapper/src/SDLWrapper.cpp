@@ -920,14 +920,13 @@ public:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_SR : 0;
 			break;
 		case JS_TYPE_HORI_STEAM:
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_MISC1 : 0;       // QAM button ("..." button)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;  // R4 back button
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;   // L4 back button
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M2 button below right stick
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M1 button below left stick
-			// TODO: Left/right capacitive touch sticks
-			//buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC3) ? 1ULL << JSOFFSET_LTOUCH : 0;      // Left stick capacitive touch
-			//buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC4) ? 1ULL << JSOFFSET_RTOUCH : 0;      // Right stick capacitive touch
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_MISC1 : 0;            // QAM button ("..." button)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;       // R4 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;        // L4 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0;      // M2 button below right stick
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;       // M1 button below left stick
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_LEFT_STICK) ? 1ULL << JSOFFSET_LTOUCH : 0;  // Left stick capacitive touch
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_RIGHT_STICK) ? 1ULL << JSOFFSET_RTOUCH : 0; // Right stick capacitive touch
 			break;
 		case JS_TYPE_G7_PRO_8K:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_CAPTURE : 0;     // Share button
@@ -987,14 +986,15 @@ public:
 			// TODO: Left/right grip sense
 			// Fall through.
 		case JS_TYPE_STEAM_DECK:
-			// TODO: Left/right capacitive touch sticks
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_MISC1 : 0;          // QAM button ("..." button)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;     // R4 back button
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;      // L4 back button
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0;    // R5 back button
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;     // L5 back button
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_TOUCHPAD) ? 1ULL << JSOFFSET_LTP_CAPTURE : 0; // Left trackpad click
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC2) ? 1ULL << JSOFFSET_RTP_CAPTURE : 0;    // Right trackpad click
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_MISC1 : 0;              // QAM button ("..." button)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;         // R4 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;          // L4 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0;        // R5 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;         // L5 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_TOUCHPAD) ? 1ULL << JSOFFSET_LTP_CAPTURE : 0;     // Left trackpad click
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC2) ? 1ULL << JSOFFSET_RTP_CAPTURE : 0;        // Right trackpad click
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_LEFT_STICK) ? 1ULL << JSOFFSET_LTOUCH : 0;    // Left stick capacitive touch
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_RIGHT_STICK) ? 1ULL << JSOFFSET_RTOUCH : 0;   // Right stick capacitive touch
 			break;
 		default:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_MISC1 : 0;
