@@ -30,6 +30,7 @@
   * **[Modeshifts](#7-modeshifts)**
   * **[Touchpad](#8-touchpad)**
     * **[Touch Sticks](#81-touch-sticks)**
+    * **[Dual Trackpads](#82-dual-trackpads)**
   * **[Miscellaneous Commands](#9-miscellaneous-commands)**
 * **[Configuration Files](#configuration-files)**
   * **[OnStartup.txt](#1-onstartuptxt)**
@@ -108,9 +109,15 @@ TOUCH : The Playstation touchpad senses a finger
 MIC: The Sony Dualsense microphone button
 LTOUCH: Left stick capacitive touch
 RTOUCH: Right stick capacitive touch
+LGRIP: Left grip sense (Steam Controller)
+RGRIP: Right grip sense (Steam Controller)
 LMINI: Left mini shoulder button
 RMINI: Right mini shoulder button
 MISC1, MISC2, MISC3, MISC4, MISC5, MISC6: Additional buttons that vary by controller
+LTP_TOUCH: Left trackpad touch (dual trackpad controllers)
+RTP_TOUCH: Right trackpad touch (dual trackpad controllers)
+LTP_CAPTURE: Left trackpad click (dual trackpad controllers)
+RTP_CAPTURE: Right trackpad click (dual trackpad controllers)
 ```
 
 These can all be mapped to the following keyboard and mouse inputs:
@@ -969,7 +976,7 @@ The touchstick center is always the point of contact. As such, one can easily co
 The touch stick differs from other input methods in one particular way. The four stick directions cannot be used as a chord for other buttons, but you can chord the four direction with the grid buttons. As such, you can control two touch sticks at the same time on either side of the touch pad with each having different bindings. The example below showcases the numbers 1 to 4 bound to swipe gestures on the left half of the pad, and 5 to 8 bound to swipe gestures on the right half of the pad.
 
 ```
-TOUCH_STICK_MODE = GRID_AND_STICK
+TOUCHPAD_MODE = GRID_AND_STICK
 GRID_SIZE = 2 1 # Left and Right
 TOUCH_STICK_RADIUS = 800 # Use a larger value to use stick as swipe gestures
 
@@ -982,6 +989,57 @@ T2,TLEFT = 5
 T2,TUP = 6
 T2,TRIGHT = 7
 T2,TDOWN = 8
+```
+
+#### 8.2 Dual Trackpads
+
+Controllers with both left and right trackpads (e.g. Steam Controller) use trackpad buttons and settings that begin with ```LTP``` and ```RTP```. Otherwise, the usage is the same as described above.
+
+Example:
+```
+# Left trackpad
+LTP_MODE = GRID_AND_STICK
+LTP_STICK_RADIUS = 800 # Use a larger value to use stick as swipe gestures
+
+LTP_LEFT = 1
+LTP_UP = 2
+LTP_RIGHT = 3
+LTP_DOWN = 4
+
+# Right trackpad
+RTP_MODE = MOUSE
+RTP_SENS = 1 0.5 # Lower vertical sensitivity
+```
+
+The following tables summarize the left/right trackpad buttons and settings along with their touchpad counterparts.
+
+Buttons:
+```
+Left Trackpad    Right Trackpad    Single Touchpad
+
+LTP_TOUCH        RTP_TOUCH         TOUCH
+LTP_CAPTURE      RTP_CAPTURE       CAPTURE
+LTP_UP           RTP_UP            TUP
+LTP_DOWN         RTP_DOWN          TDOWN
+LTP_LEFT         RTP_LEFT          TLEFT
+LTP_RIGHT        RTP_RIGHT         TRIGHT
+LTP_RING         RTP_RING          TRING
+LTP1-LTP25       RTP1-RTP25        T1-T25
+```
+
+Settings:
+```
+Left Trackpad          Right Trackpad         Single Touchpad
+
+LTP_DUAL_STAGE_MODE    RTP_DUAL_STAGE_MODE    TOUCHPAD_DUAL_STAGE_MODE
+LTP_MODE               RTP_MODE               TOUCHPAD_MODE
+LTP_GRID_SIZE          RTP_GRID_SIZE          GRID_SIZE
+LTP_SENS               RTP_SENS               TOUCHPAD_SENS
+LTP_STICK_MODE         RTP_STICK_MODE         TOUCH_STICK_MODE
+LTP_DEADZONE_INNER     RTP_DEADZONE_INNER     TOUCH_DEADZONE_INNER
+LTP_RING_MODE          RTP_RING_MODE          TOUCH_RING_MODE
+LTP_STICK_RADIUS       RTP_STICK_RADIUS       TOUCH_STICK_RADIUS
+LTP_STICK_AXIS         RTP_STICK_AXIS         TOUCH_STICK_AXIS
 ```
 
 ### 9. Miscellaneous Commands
