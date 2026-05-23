@@ -186,10 +186,32 @@ if(SDL OR NOT DEFINED SDL)
     set(SDL_TEST_LIBRARY OFF)
     set(SDL_SHARED ON)
     set(SDL_TEST OFF)
+
+    # Build with libusb support for Switch 2 controllers
+    set(SDL_HIDAPI_LIBUSB ON)
+    set(SDL_HIDAPI_LIBUSB_SHARED OFF)
+
+    # Disable unused subsystems
+    set(SDL_AUDIO OFF)
+    set(SDL_CAMERA OFF)
+    set(SDL_DIALOG OFF)
+    set(SDL_GPU OFF)
+    set(SDL_HAPTIC OFF)
+    set(SDL_OFFSCREEN OFF)
+    set(SDL_POWER OFF)
+    set(SDL_RENDER OFF)
+    set(SDL_SENSOR OFF)
+    set(SDL_TRAY OFF)
+    set(SDL_VIDEO OFF)
+    set(SDL_VIRTUAL_JOYSTICK OFF)
+
+    # Set GIT_TAG to a recent main branch commit hash for full Steam Controller,
+    # Steam Deck, and Horipad support. Required until 3.6.0 is released.
 	CPMAddPackage (
 		NAME SDL3
         GITHUB_REPOSITORY libsdl-org/SDL
-        GIT_TAG release-3.4.4
+        #GIT_TAG release-3.6.0
+        GIT_TAG e7b238a6ed9d64bcc92f8ffc75fecc10f0153b73
 	)
 	set_target_properties(SDL_uclibc PROPERTIES FOLDER "SDL")
     set_target_properties(SDL3-shared PROPERTIES FOLDER "SDL")

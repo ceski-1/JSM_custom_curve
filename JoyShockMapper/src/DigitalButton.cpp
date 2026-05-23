@@ -6,7 +6,7 @@
 
 void DigitalButton::Context::updateChordStack(bool isPressed, ButtonID id)
 {
-	if (id < ButtonID::SIZE || id >= ButtonID::T1) // Can't chord touch stick _buttons
+	if (id < ButtonID::SIZE || id >= FIRST_TOUCH_BUTTON) // Can't chord touch stick _buttons
 	{
 		if (isPressed)
 		{

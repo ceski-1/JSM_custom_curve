@@ -7,6 +7,8 @@
 extern shared_ptr<JslWrapper> jsl;
 extern vector<JSMButton> mappings;
 extern vector<JSMButton> grid_mappings;
+extern vector<JSMButton> left_grid_mappings;
+extern vector<JSMButton> right_grid_mappings;
 extern float os_mouse_speed;
 extern float last_flick_and_rotation;
 
@@ -72,12 +74,20 @@ JoyShock::JoyShock(int uniqueHandle, int controllerSplitType, shared_ptr<Digital
 	{
 		_touchpads.push_back(TouchStick(i, _context, _handle));
 	}
+
+	_leftTrackpads.push_back(LeftTouchStick(0, _context, _handle));
+	_rightTrackpads.push_back(RightTouchStick(0, _context, _handle));
+
 	_leftStick.scroll.init(_buttons[int(ButtonID::LLEFT)], _buttons[int(ButtonID::LRIGHT)]);
 	_rightStick.scroll.init(_buttons[int(ButtonID::RLEFT)], _buttons[int(ButtonID::RRIGHT)]);
 	_motionStick.scroll.init(_buttons[int(ButtonID::MLEFT)], _buttons[int(ButtonID::MRIGHT)]);
 	_touchScrollX.init(_touchpads[0].buttons.find(ButtonID::TLEFT)->second, _touchpads[0].buttons.find(ButtonID::TRIGHT)->second);
 	_touchScrollY.init(_touchpads[0].buttons.find(ButtonID::TUP)->second, _touchpads[0].buttons.find(ButtonID::TDOWN)->second);
-	updateGridSize();
+
+	updateGridSizeEx(grid_mappings, _gridButtons);
+	updateGridSizeEx(left_grid_mappings, _leftGridButtons);
+	updateGridSizeEx(right_grid_mappings, _rightGridButtons);
+
 	_touchpads[0].scroll.init(_touchpads[0].buttons.find(ButtonID::TLEFT)->second, _touchpads[0].buttons.find(ButtonID::TRIGHT)->second);
 	_touchpads[0].verticalScroll.init(_touchpads[0].buttons.find(ButtonID::TUP)->second, _touchpads[0].buttons.find(ButtonID::TDOWN)->second);
 }
@@ -261,14 +271,65 @@ AxisSignPair JoyShock::getSetting<AxisSignPair>(SettingID index)
 	throw invalid_argument(ss.str().c_str());
 }
 
+JSMButton *JoyShock::getMapping(ButtonID id)
+{
+	if (int(id) < mappings.size())
+	{
+		return &mappings[int(id)];
+	}
+	else if (id >= FIRST_RTP_BUTTON && int(id) - int(FIRST_RTP_BUTTON) < right_grid_mappings.size())
+	{
+		return &right_grid_mappings[int(id) - int(FIRST_RTP_BUTTON)];
+	}
+	else if (id >= FIRST_LTP_BUTTON && int(id) - int(FIRST_LTP_BUTTON) < left_grid_mappings.size())
+	{
+		return &left_grid_mappings[int(id) - int(FIRST_LTP_BUTTON)];
+	}
+	else if (id >= FIRST_TOUCH_BUTTON && int(id) - int(FIRST_TOUCH_BUTTON) < grid_mappings.size())
+	{
+		return &grid_mappings[int(id) - int(FIRST_TOUCH_BUTTON)];
+	}
+	return nullptr;
+}
+
+DigitalButton *JoyShock::getDigitalButton(ButtonID id, int touchpadID, int leftTrackpadID, int rightTrackpadID)
+{
+	if (int(id) < _buttons.size())
+	{
+		return &_buttons[int(id)];
+	}
+	else if (touchpadID >= 0 && touchpadID < _touchpads.size())
+	{
+		return &_touchpads[touchpadID].buttons.find(id)->second;
+	}
+	else if (leftTrackpadID >= 0 && leftTrackpadID < _leftTrackpads.size())
+	{
+		return &_leftTrackpads[leftTrackpadID].buttons.find(id)->second;
+	}
+	else if (rightTrackpadID >= 0 && rightTrackpadID < _rightTrackpads.size())
+	{
+		return &_rightTrackpads[rightTrackpadID].buttons.find(id)->second;
+	}
+	else if (id >= FIRST_RTP_BUTTON && int(id) - int(FIRST_RTP_BUTTON) < _rightGridButtons.size())
+	{
+		return &_rightGridButtons[int(id) - int(FIRST_RTP_BUTTON)];
+	}
+	else if (id >= FIRST_LTP_BUTTON && int(id) - int(FIRST_LTP_BUTTON) < _leftGridButtons.size())
+	{
+		return &_leftGridButtons[int(id) - int(FIRST_LTP_BUTTON)];
+	}
+	else if (id >= FIRST_TOUCH_BUTTON && int(id) - int(FIRST_TOUCH_BUTTON) < _gridButtons.size())
+	{
+		return &_gridButtons[int(id) - int(FIRST_TOUCH_BUTTON)];
+	}
+	return nullptr;
+}
+
 DigitalButton *JoyShock::getMatchingSimBtn(ButtonID index)
 {
-	JSMButton *mapping = int(index) < mappings.size()        ? &mappings[int(index)] :
-	  int(index) - FIRST_TOUCH_BUTTON < grid_mappings.size() ? &grid_mappings[int(index) - FIRST_TOUCH_BUTTON] :
-	                                                           nullptr;
-	DigitalButton *button1 = int(index) < mappings.size()    ? &_buttons[int(index)] :
-	  int(index) - FIRST_TOUCH_BUTTON < grid_mappings.size() ? &_gridButtons[int(index) - FIRST_TOUCH_BUTTON] :
-	                                                           nullptr;
+	JSMButton *mapping = getMapping(index);
+	DigitalButton *button1 = getDigitalButton(index);
+
 	if (!mapping)
 	{
 		CERR << "Cannot find the button " << index << '\n';
@@ -285,9 +346,7 @@ DigitalButton *JoyShock::getMatchingSimBtn(ButtonID index)
 		// of the _buttons has a third SimMap with this one. I don't know if it's worth solving though...
 		for (auto iter = mapping->getSimMapIter() ; iter ; ++iter)
 		{
-			DigitalButton *button2 = int(iter->first) < mappings.size()      ? &_buttons[int(iter->first)] :
-			  int(iter->first) - FIRST_TOUCH_BUTTON < grid_mappings.size() ? &_gridButtons[int(iter->first) - FIRST_TOUCH_BUTTON] :
-																				nullptr;
+			DigitalButton *button2 = getDigitalButton(iter->first);
 
 			if (!button2)
 			{
@@ -304,12 +363,9 @@ DigitalButton *JoyShock::getMatchingSimBtn(ButtonID index)
 
 DigitalButton *JoyShock::getMatchingDiagBtn(ButtonID index, optional<MapIterator> &iter)
 {
-	JSMButton *mapping = int(index) < mappings.size()        ? &mappings[int(index)] :
-	  int(index) - FIRST_TOUCH_BUTTON < grid_mappings.size() ? &grid_mappings[int(index) - FIRST_TOUCH_BUTTON] :
-	                                                           nullptr;
-	DigitalButton *button1 = int(index) < mappings.size()    ? &_buttons[int(index)] :
-	  int(index) - FIRST_TOUCH_BUTTON < grid_mappings.size() ? &_gridButtons[int(index) - FIRST_TOUCH_BUTTON] :
-	                                                           nullptr;
+	JSMButton *mapping = getMapping(index);
+	DigitalButton *button1 = getDigitalButton(index);
+
 	if (!mapping)
 	{
 		CERR << "Cannot find the button " << index << '\n';
@@ -325,10 +381,7 @@ DigitalButton *JoyShock::getMatchingDiagBtn(ButtonID index, optional<MapIterator
 			iter = mapping->getDiagMapIter();
 		for (; *iter; ++*iter)
 		{
-			int i = int((*iter)->first);
-			DigitalButton *button2 = i < mappings.size()    ? &_buttons[i] :
-			  i - FIRST_TOUCH_BUTTON < grid_mappings.size() ? &_gridButtons[i - FIRST_TOUCH_BUTTON] :
-			                                                                 nullptr;
+			DigitalButton *button2 = getDigitalButton((*iter)->first);
 
 			if (!button2)
 			{
@@ -518,16 +571,13 @@ void JoyShock::resetOneEuroFilter()
 	_oneEuroY.reset();
 }
 
-void JoyShock::handleButtonChange(ButtonID id, bool pressed, int touchpadID)
+void JoyShock::handleButtonChange(ButtonID id, bool pressed, int touchpadID, int leftTrackpadID, int rightTrackpadID)
 {
-	DigitalButton *button = int(id) <= LAST_ANALOG_TRIGGER ? &_buttons[int(id)] :
-	  touchpadID >= 0 && touchpadID < _touchpads.size()    ? &_touchpads[touchpadID].buttons.find(id)->second :
-	  id >= ButtonID::T1                                   ? &_gridButtons[int(id) - int(ButtonID::T1)] :
-	                                                         nullptr;
+	DigitalButton *button = getDigitalButton(id, touchpadID, leftTrackpadID, rightTrackpadID);
 
 	if (!button)
 	{
-		CERR << "Button " << id << " with tocuchpadId " << touchpadID << " could not be found\n";
+		CERR << "Button " << id << " could not be found (touchpadID: " << touchpadID << " leftTrackpadID: " << leftTrackpadID << " rightTrackpadID: " << rightTrackpadID << ")\n";
 		return;
 	}
 	else if ((!_context->nn && pressed) || (_context->nn > 0 && (id >= ButtonID::UP || id <= ButtonID::DOWN || id == ButtonID::S || id == ButtonID::E) && nnm.find(_context->nn) != nnm.end() && nnm.find(_context->nn)->second == id))
@@ -876,15 +926,38 @@ bool JoyShock::processDeadZones(float &x, float &y, float innerDeadzone, float o
 	return false;
 }
 
-void JoyShock::updateGridSize()
+void JoyShock::updateGridSizeEx(vector<JSMButton> &in_grid_mappings, vector<DigitalButton> &in_grid_buttons)
 {
-	while (_gridButtons.size() > grid_mappings.size())
-		_gridButtons.pop_back();
-
-	for (size_t i = _gridButtons.size(); i < grid_mappings.size(); ++i)
+	while (in_grid_buttons.size() > in_grid_mappings.size())
 	{
-		JSMButton &map(grid_mappings[i]);
-		_gridButtons.push_back(DigitalButton(_context, map));
+		in_grid_buttons.pop_back();
+	}
+
+	for (size_t i = in_grid_buttons.size(); i < in_grid_mappings.size(); ++i)
+	{
+		JSMButton &map(in_grid_mappings[i]);
+		in_grid_buttons.push_back(DigitalButton(_context, map));
+	}
+}
+
+void JoyShock::updateGridSize(ButtonID grid_start)
+{
+	switch (grid_start)
+	{
+		case FIRST_TOUCH_BUTTON:
+			updateGridSizeEx(grid_mappings, _gridButtons);
+			break;
+
+		case FIRST_LTP_BUTTON:
+			updateGridSizeEx(left_grid_mappings, _leftGridButtons);
+			break;
+
+		case FIRST_RTP_BUTTON:
+			updateGridSizeEx(right_grid_mappings, _rightGridButtons);
+			break;
+
+		default:
+			break;
 	}
 }
 
@@ -1151,7 +1224,7 @@ void JoyShock::processStick(float stickX, float stickY, Stick &stick, float mous
 
 	bool ring = ringMode == RingMode::INNER && stickLength > 0.0f && stickLength < 0.7f ||
 	  ringMode == RingMode::OUTER && stickLength > 0.7f;
-	handleButtonChange(stick._ringId, ring, stick._touchpadIndex);
+	handleButtonChange(stick._ringId, ring, stick._touchpadIndex, stick._leftTrackpadIndex, stick._rightTrackpadIndex);
 
 	if (stick.ignore_stick_mode && stickMode == StickMode::INVALID && stickX == 0 && stickY == 0)
 	{
@@ -1243,13 +1316,13 @@ void JoyShock::processStick(float stickX, float stickY, Stick &stick, float mous
 	else if (stickMode == StickMode::NO_MOUSE || stickMode == StickMode::INNER_RING || stickMode == StickMode::OUTER_RING)
 	{ // Do not do if invalid
 		// left!
-		handleButtonChange(stick._leftId, left, stick._touchpadIndex);
+		handleButtonChange(stick._leftId, left, stick._touchpadIndex, stick._leftTrackpadIndex, stick._rightTrackpadIndex);
 		// right!
-		handleButtonChange(stick._rightId, right, stick._touchpadIndex);
+		handleButtonChange(stick._rightId, right, stick._touchpadIndex, stick._leftTrackpadIndex, stick._rightTrackpadIndex);
 		// up!
-		handleButtonChange(stick._upId, up, stick._touchpadIndex);
+		handleButtonChange(stick._upId, up, stick._touchpadIndex, stick._leftTrackpadIndex, stick._rightTrackpadIndex);
 		// down!
-		handleButtonChange(stick._downId, down, stick._touchpadIndex);
+		handleButtonChange(stick._downId, down, stick._touchpadIndex, stick._leftTrackpadIndex, stick._rightTrackpadIndex);
 
 		anyStickInput = left || right || up || down; // ring doesn't count
 	}
@@ -1575,7 +1648,7 @@ void JoyShock::handleTouchStickChange(TouchStick &ts, bool down, short movX, sho
 	ts.lastX = stickX;
 	ts.lastY = stickY;
 
-	moveMouse(camSpeedX * float(getSetting<AxisSignPair>(SettingID::TOUCH_STICK_AXIS).first), -camSpeedY * float(getSetting<AxisSignPair>(SettingID::TOUCH_STICK_AXIS).second));
+	moveMouse(camSpeedX * float(axisSign.first), -camSpeedY * float(axisSign.second));
 
 	if (!down && ts._prevDown)
 	{
@@ -1583,6 +1656,76 @@ void JoyShock::handleTouchStickChange(TouchStick &ts, bool down, short movX, sho
 
 		ts.is_flicking = false;
 		ts.acceleration = 1.0;
+		ts.ignore_stick_mode = false;
+	}
+	else
+	{
+		ts._currentLocation = { ts._currentLocation.x() + movX, ts._currentLocation.y() - movY };
+	}
+
+	ts._prevDown = down;
+}
+
+void JoyShock::handleLeftTouchStickChange(LeftTouchStick &ts, bool down, short movX, short movY, float delta_time)
+{
+	float stickX = down ? clamp<float>((ts._currentLocation.x() + movX) / getSetting(SettingID::LTP_STICK_RADIUS), -1.0f, 1.0f) : 0.0f;
+	float stickY = down ? clamp<float>((ts._currentLocation.y() - movY) / getSetting(SettingID::LTP_STICK_RADIUS), -1.0f, 1.0f) : 0.0f;
+	float mouseCalibrationFactor = 180.0f / M_PI / os_mouse_speed;
+	bool anyStickInput = false;
+	bool lockMouse = false;
+	float camSpeedX = 0.0f;
+	float camSpeedY = 0.0f;
+	auto axisSign = getSetting<AxisSignPair>(SettingID::LTP_STICK_AXIS);
+
+	stickX *= float(axisSign.first);
+	stickY *= float(axisSign.second);
+	processStick(stickX, stickY, ts, mouseCalibrationFactor, delta_time, anyStickInput, lockMouse, camSpeedX, camSpeedY);
+	ts.lastX = stickX;
+	ts.lastY = stickY;
+
+	moveMouse(camSpeedX * float(axisSign.first), -camSpeedY * float(axisSign.second));
+
+	if (!down && ts._prevDown)
+	{
+		ts._currentLocation = { 0.0f, 0.0f };
+
+		ts.is_flicking = false;
+		ts.acceleration = 1.0f;
+		ts.ignore_stick_mode = false;
+	}
+	else
+	{
+		ts._currentLocation = { ts._currentLocation.x() + movX, ts._currentLocation.y() - movY };
+	}
+
+	ts._prevDown = down;
+}
+
+void JoyShock::handleRightTouchStickChange(RightTouchStick &ts, bool down, short movX, short movY, float delta_time)
+{
+	float stickX = down ? clamp<float>((ts._currentLocation.x() + movX) / getSetting(SettingID::RTP_STICK_RADIUS), -1.0f, 1.0f) : 0.0f;
+	float stickY = down ? clamp<float>((ts._currentLocation.y() - movY) / getSetting(SettingID::RTP_STICK_RADIUS), -1.0f, 1.0f) : 0.0f;
+	float mouseCalibrationFactor = 180.0f / M_PI / os_mouse_speed;
+	bool anyStickInput = false;
+	bool lockMouse = false;
+	float camSpeedX = 0.0f;
+	float camSpeedY = 0.0f;
+	auto axisSign = getSetting<AxisSignPair>(SettingID::RTP_STICK_AXIS);
+
+	stickX *= float(axisSign.first);
+	stickY *= float(axisSign.second);
+	processStick(stickX, stickY, ts, mouseCalibrationFactor, delta_time, anyStickInput, lockMouse, camSpeedX, camSpeedY);
+	ts.lastX = stickX;
+	ts.lastY = stickY;
+
+	moveMouse(camSpeedX * float(axisSign.first), -camSpeedY * float(axisSign.second));
+
+	if (!down && ts._prevDown)
+	{
+		ts._currentLocation = { 0.0f, 0.0f };
+
+		ts.is_flicking = false;
+		ts.acceleration = 1.0f;
 		ts.ignore_stick_mode = false;
 	}
 	else

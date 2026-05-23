@@ -71,6 +71,9 @@ inline bool operator!=(const AdaptiveTriggerSetting &lhs, const AdaptiveTriggerS
 #define JS_TYPE_FLYDIGI_VADER4_PRO 21
 #define JS_TYPE_FLYDIGI_VADER5_PRO 22
 #define JS_TYPE_SWITCH2_PRO_CONTROLLER 23
+#define JS_TYPE_STEAM_CONTROLLER 24
+#define JS_TYPE_STEAM_DECK 25
+#define JS_TYPE_STEAM_CONTROLLER_TRITON 26
 
 #define JS_SPLIT_TYPE_LEFT 1
 #define JS_SPLIT_TYPE_RIGHT 2
@@ -87,6 +90,7 @@ inline bool operator!=(const AdaptiveTriggerSetting &lhs, const AdaptiveTriggerS
 #define JS_VENDOR_NINTENDO 0x057e
 #define JS_VENDOR_PDP 0x0e6f
 #define JS_VENDOR_POWERA 0x24c6
+#define JS_VENDOR_VALVE 0x28de
 
 // USB PID values
 #define JS_PRODUCT_UNKNOWN 0
@@ -112,6 +116,20 @@ inline bool operator!=(const AdaptiveTriggerSetting &lhs, const AdaptiveTriggerS
 #define JS_PRODUCT_XBOX_SERIES_X 0x0b12
 #define JS_PRODUCT_XBOX_SERIES_X_BLE 0x0b13
 #define JS_PRODUCT_XBOX_ONE_XBOXGIP_CONTROLLER 0x02ff
+
+// USB PID values (Valve)
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_CHELL 0x1101
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_D0G_WIRED 0x1102
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_D0G_BT 0x1105
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_D0G_BT2 0x1106
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_WIRELESS 0x1142
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_V2_HEADCRAB_WIRED 0x1201
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_V2_HEADCRAB_BT 0x1202
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_NEPTUNE 0x1205 // Steam Deck
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_TRITON 0x1302
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_TRITON_BLE 0x1303
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_TRITON_PROTEUS 0x1304 // Dongle
+#define JS_PRODUCT_VALVE_STEAM_CONTROLLER_TRITON_NEREID 0x1305 // Dongle
 
 // Device bus definitions
 #define JS_HARDWARE_BUS_UNKNOWN 0x00
@@ -163,6 +181,8 @@ inline bool operator!=(const AdaptiveTriggerSetting &lhs, const AdaptiveTriggerS
 #define JSMASK_MISC4 0x40000000
 #define JSMASK_MISC5 0x80000000
 #define JSMASK_MISC6 0x100000000
+#define JSMASK_LTP_CAPTURE 0x200000000
+#define JSMASK_RTP_CAPTURE 0x400000000
 
 #define JSOFFSET_UP 0
 #define JSOFFSET_DOWN 1
@@ -201,6 +221,8 @@ inline bool operator!=(const AdaptiveTriggerSetting &lhs, const AdaptiveTriggerS
 #define JSOFFSET_MISC4 30
 #define JSOFFSET_MISC5 31
 #define JSOFFSET_MISC6 32
+#define JSOFFSET_LTP_CAPTURE 33
+#define JSOFFSET_RTP_CAPTURE 34
 
 // PS5 Player maps for the DS Player Lightbar
 #define DS5_PLAYER_1 = 4
@@ -258,6 +280,25 @@ typedef struct TOUCH_STATE
 
 #endif
 
+typedef struct finger_state_t
+{
+	bool enabled;
+	bool down;
+	float x;
+	float y;
+} finger_state_t;
+
+typedef struct trackpad_state_t
+{
+	bool enabled;
+	finger_state_t fingers[2];
+	ButtonID grid_start;
+	ButtonID grid_end;
+	SettingID mode;
+	SettingID grid_size;
+	SettingID mouse_sens;
+} trackpad_state_t;
+
 class JslWrapper
 {
 protected:
@@ -279,6 +320,7 @@ public:
 	virtual IMU_STATE GetIMUState(int deviceId) = 0;
 	virtual MOTION_STATE GetMotionState(int deviceId) = 0;
 	virtual TOUCH_STATE GetTouchState(int deviceId, bool previous = false) = 0;
+	virtual void GetTrackpadState(int deviceId, trackpad_state_t *trackpads_state) = 0;
 	virtual bool GetTouchpadDimension(int deviceId, int& sizeX, int& sizeY) = 0;
 	virtual uint64_t GetButtons(int deviceId) = 0;
 	virtual float GetLeftX(int deviceId) = 0;
@@ -294,9 +336,9 @@ public:
 	virtual float GetAccelY(int deviceId) = 0;
 	virtual float GetAccelZ(int deviceId) = 0;
 	virtual int GetTouchId(int deviceId, bool secondTouch = false) = 0;
-	virtual bool GetTouchDown(int deviceId, bool secondTouch = false) = 0;
-	virtual float GetTouchX(int deviceId, bool secondTouch = false) = 0;
-	virtual float GetTouchY(int deviceId, bool secondTouch = false) = 0;
+	virtual bool GetTouchDown(int deviceId, int touchpad, int finger) = 0;
+	virtual float GetTouchX(int deviceId, int touchpad, int finger) = 0;
+	virtual float GetTouchY(int deviceId, int touchpad, int finger) = 0;
 	virtual float GetStickStep(int deviceId) = 0;
 	virtual float GetTriggerStep(int deviceId) = 0;
 	virtual float GetPollRate(int deviceId) = 0;
@@ -309,6 +351,7 @@ public:
 	virtual void SetCalibrationOffset(int deviceId, float xOffset, float yOffset, float zOffset) = 0;
 	virtual void SetCallback(void (*callback)(int, JOY_SHOCK_STATE, JOY_SHOCK_STATE, IMU_STATE, IMU_STATE, float)) = 0;
 	virtual void SetTouchCallback(void (*callback)(int, TOUCH_STATE, TOUCH_STATE, float)) = 0;
+	virtual void SetTrackpadCallback(void (*callback)(int, const trackpad_state_t *, const trackpad_state_t *, float)) = 0;
 	virtual int GetControllerType(int deviceId) = 0;
 	virtual int GetControllerSplitType(int deviceId) = 0;
 	virtual int GetControllerVendor(int deviceId) = 0;

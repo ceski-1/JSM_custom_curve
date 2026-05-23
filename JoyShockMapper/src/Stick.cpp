@@ -2,14 +2,15 @@
 #include "Stick.h"
 #include "JSMVariable.hpp"
 
-extern vector<JSMButton> grid_mappings;
 extern vector<JSMButton> mappings;
 
-void ScrollAxis::init(DigitalButton& negativeBtn, DigitalButton& positiveBtn, int touchpadId)
+void ScrollAxis::init(DigitalButton& negativeBtn, DigitalButton& positiveBtn, int touchpadId, int leftTrackpadId, int rightTrackpadId)
 {
 	_negativeButton = &negativeBtn;
 	_positiveButton = &positiveBtn;
 	_touchpadId = touchpadId;
+	_leftTrackpadId = leftTrackpadId;
+	_rightTrackpadId = rightTrackpadId;
 }
 
 void ScrollAxis::processScroll(float distance, float sens, chrono::steady_clock::time_point now)
@@ -103,3 +104,26 @@ TouchStick::TouchStick(int index, shared_ptr<DigitalButton::Context> common, int
 	buttons.emplace(ButtonID::TRING, DigitalButton(common, mappings[int(ButtonID::TRING)]));
 }
 
+LeftTouchStick::LeftTouchStick(int index, shared_ptr<DigitalButton::Context> common, int handle)
+	: Stick(SettingID::LTP_DEADZONE_INNER, SettingID::ZERO, SettingID::LTP_RING_MODE, SettingID::LTP_STICK_MODE,
+		ButtonID::LTP_RING, ButtonID::LTP_LEFT, ButtonID::LTP_RIGHT, ButtonID::LTP_UP, ButtonID::LTP_DOWN)
+{
+	this->_leftTrackpadIndex = index;
+	buttons.emplace(ButtonID::LTP_UP, DigitalButton(common, mappings[int(ButtonID::LTP_UP)]));
+	buttons.emplace(ButtonID::LTP_DOWN, DigitalButton(common, mappings[int(ButtonID::LTP_DOWN)]));
+	buttons.emplace(ButtonID::LTP_LEFT, DigitalButton(common, mappings[int(ButtonID::LTP_LEFT)]));
+	buttons.emplace(ButtonID::LTP_RIGHT, DigitalButton(common, mappings[int(ButtonID::LTP_RIGHT)]));
+	buttons.emplace(ButtonID::LTP_RING, DigitalButton(common, mappings[int(ButtonID::LTP_RING)]));
+}
+
+RightTouchStick::RightTouchStick(int index, shared_ptr<DigitalButton::Context> common, int handle)
+	: Stick(SettingID::RTP_DEADZONE_INNER, SettingID::ZERO, SettingID::RTP_RING_MODE, SettingID::RTP_STICK_MODE,
+		ButtonID::RTP_RING, ButtonID::RTP_LEFT, ButtonID::RTP_RIGHT, ButtonID::RTP_UP, ButtonID::RTP_DOWN)
+{
+	this->_rightTrackpadIndex = index;
+	buttons.emplace(ButtonID::RTP_UP, DigitalButton(common, mappings[int(ButtonID::RTP_UP)]));
+	buttons.emplace(ButtonID::RTP_DOWN, DigitalButton(common, mappings[int(ButtonID::RTP_DOWN)]));
+	buttons.emplace(ButtonID::RTP_LEFT, DigitalButton(common, mappings[int(ButtonID::RTP_LEFT)]));
+	buttons.emplace(ButtonID::RTP_RIGHT, DigitalButton(common, mappings[int(ButtonID::RTP_RIGHT)]));
+	buttons.emplace(ButtonID::RTP_RING, DigitalButton(common, mappings[int(ButtonID::RTP_RING)]));
+}

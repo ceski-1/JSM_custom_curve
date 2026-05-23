@@ -61,6 +61,20 @@ const map<ButtonID, string> buttonHelpMap{
 	{ ButtonID::MISC4, "Additional button that varies by controller" },
 	{ ButtonID::MISC5, "Additional button that varies by controller" },
 	{ ButtonID::MISC6, "Additional button that varies by controller" },
+	{ ButtonID::LTP_TOUCH, "Left trackpad touch" },
+	{ ButtonID::LTP_CAPTURE, "Left trackpad click" },
+	{ ButtonID::LTP_UP, "Left trackpad touchstick up" },
+	{ ButtonID::LTP_DOWN, "Left trackpad touchstick down" },
+	{ ButtonID::LTP_LEFT, "Left trackpad touchstick left" },
+	{ ButtonID::LTP_RIGHT, "Left trackpad touchstick right" },
+	{ ButtonID::LTP_RING, "Left trackpad touchstick ring" },
+	{ ButtonID::RTP_TOUCH, "Right trackpad touch" },
+	{ ButtonID::RTP_CAPTURE, "Right trackpad click" },
+	{ ButtonID::RTP_UP, "Right trackpad touchstick up" },
+	{ ButtonID::RTP_DOWN, "Right trackpad touchstick down" },
+	{ ButtonID::RTP_LEFT, "Right trackpad touchstick left" },
+	{ ButtonID::RTP_RIGHT, "Right trackpad touchstick right" },
+	{ ButtonID::RTP_RING, "Right trackpad touchstick ring" },
 };
 
 map<int, ButtonID> nnm = { 
