@@ -41,6 +41,8 @@ unique_ptr<TrayIcon> tray;
 unique_ptr<Whitelister> whitelister;
 
 vector<JSMButton> grid_mappings; // array of virtual _buttons on the touchpad grid
+vector<JSMButton> left_grid_mappings;
+vector<JSMButton> right_grid_mappings;
 vector<JSMButton> mappings;      // array enables use of for each loop and other i/f
 
 float os_mouse_speed = 1.0;
@@ -135,15 +137,15 @@ struct TOUCH_POINT
 			posY = newState->y();
 			if (prevState)
 			{
-				movX = int16_t((newState->x() - prevState->x()) * tpSize.x()); // Relative movement in unit
-				movY = int16_t((newState->y() - prevState->y()) * tpSize.y());
+				movX = (newState->x() - prevState->x()) * tpSize.x(); // Relative movement in unit
+				movY = (newState->y() - prevState->y()) * tpSize.y();
 			}
 		}
 	}
 	float posX = -1.f;
 	float posY = -1.f;
-	short movX = 0;
-	short movY = 0;
+	float movX = 0.f;
+	float movY = 0.f;
 	inline bool isDown()
 	{
 		return posX >= 0.f && posX <= 1.f && posY >= 0.f && posY <= 1.f;
@@ -209,7 +211,7 @@ void touchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 
 		static const function<bool(ButtonID)> IS_TOUCH_BUTTON = [](ButtonID id)
 		{
-			return id >= ButtonID::T1;
+			return (id >= FIRST_TOUCH_BUTTON && id <= LAST_TOUCH_BUTTON);
 		};
 
 		for (auto currentlyActive = find_if(js->_context->chordStack.begin(), js->_context->chordStack.end(), IS_TOUCH_BUTTON);
@@ -243,7 +245,7 @@ void touchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 
 		for (size_t i = 0; i < grid_mappings.size(); ++i)
 		{
-			auto optId = magic_enum::enum_cast<ButtonID>(int(FIRST_TOUCH_BUTTON + i));
+			auto optId = magic_enum::enum_cast<ButtonID>(int(FIRST_TOUCH_BUTTON) + int(i));
 
 			// JSM can get touch button callbacks before the grid _buttons are setup at startup. Just skip then.
 			if (optId && js->_gridButtons.size() == grid_mappings.size())
@@ -304,6 +306,166 @@ void touchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 			optional<FloatXY> p0 = newState.t0Down ? make_optional<FloatXY>(newState.t0X, newState.t0Y) : nullopt;
 			optional<FloatXY> p1 = newState.t1Down ? make_optional<FloatXY>(newState.t1X, newState.t1Y) : nullopt;
 			js->_context->_vigemController->setTouchState(p0, p1);
+		}
+	}
+}
+
+static void trackpadCallback(int jcHandle, const trackpad_state_t *state, const trackpad_state_t *prev_state, float delta_time)
+{
+	// If there's only one trackpad, treat it as a single touchpad and return.
+	if (state[0].enabled && !state[1].enabled)
+	{
+		TOUCH_STATE newState, prevState;
+		memset(&newState, 0, sizeof(newState));
+		memset(&prevState, 0, sizeof(prevState));
+
+		TOUCH_STATE *touch_states[] = {&newState, &prevState};
+		const trackpad_state_t *states[] = {&state[0], &prev_state[0]};
+
+		for (int i = 0; i < 2; i++)
+		{
+			// First finger
+			touch_states[i]->t0Down = states[i]->fingers[0].down;
+			touch_states[i]->t0X = states[i]->fingers[0].x;
+			touch_states[i]->t0Y = states[i]->fingers[0].y;
+
+			// Second finger
+			touch_states[i]->t1Down = states[i]->fingers[1].down;
+			touch_states[i]->t1X = states[i]->fingers[1].x;
+			touch_states[i]->t1Y = states[i]->fingers[1].y;
+		}
+
+		touchCallback(jcHandle, newState, prevState, delta_time);
+		return;
+	}
+
+	if (!state[0].enabled || !state[1].enabled)
+	{
+		// Shouldn't be here!
+		return;
+	}
+
+	shared_ptr<JoyShock> js;
+	{
+		std::lock_guard<std::mutex> guard(handle_to_joyshock_mutex);
+		js = handle_to_joyshock[jcHandle];
+	}
+
+	int tpSizeX, tpSizeY;
+	if (!js || jsl->GetTouchpadDimension(jcHandle, tpSizeX, tpSizeY) == false)
+	{
+		return;
+	}
+	FloatXY tpSize{ float(tpSizeX), float(tpSizeY) };
+
+	lock_guard guard(js->_context->callback_lock);
+
+	// Always check if the chords should be cleared.
+	for (int i = 0; i < 2; i++)
+	{
+		const finger_state_t *finger = &state[i].fingers[0];
+		const finger_state_t *prev_finger = &prev_state[i].fingers[0];
+
+		TOUCH_POINT point(
+		  finger->down ? make_optional<FloatXY>(finger->x, finger->y) : nullopt,
+		  prev_finger->down ? make_optional<FloatXY>(prev_finger->x, prev_finger->y) : nullopt,
+		  tpSize);
+
+		// If finger was lifted from this trackpad, clear all chords.
+		if (!point.isDown())
+		{
+			// Only clear the range associated with this trackpad.
+			const ButtonID grid_start = state[i].grid_start;
+			const ButtonID grid_end = state[i].grid_end;
+			static const function<bool(ButtonID)> IS_TOUCH_BUTTON = [grid_start, grid_end](ButtonID id)
+			{
+				return (id >= grid_start && id <= grid_end);
+			};
+
+			for (auto currentlyActive = find_if(js->_context->chordStack.begin(), js->_context->chordStack.end(), IS_TOUCH_BUTTON);
+				currentlyActive != js->_context->chordStack.end();
+				currentlyActive = find_if(js->_context->chordStack.begin(), js->_context->chordStack.end(), IS_TOUCH_BUTTON))
+			{
+				js->_context->chordStack.erase(currentlyActive);
+			}
+		}
+	}
+
+	// If both trackpads are simulating a single PS touchpad, handle it now and return.
+	if (js->getSetting<TouchpadMode>(state[0].mode) == TouchpadMode::PS_TOUCHPAD &&
+	    js->getSetting<TouchpadMode>(state[1].mode) == TouchpadMode::PS_TOUCHPAD)
+	{
+		if (js->hasVirtualController())
+		{
+			const finger_state_t *finger0 = &state[0].fingers[0];
+			const finger_state_t *finger1 = &state[1].fingers[0];
+
+			optional<FloatXY> p0 = finger0->down ? make_optional<FloatXY>(finger0->x, finger0->y) : nullopt;
+			optional<FloatXY> p1 = finger1->down ? make_optional<FloatXY>(finger1->x, finger1->y) : nullopt;
+
+			js->_context->_vigemController->setTouchState(p0, p1);
+		}
+
+		return;
+	}
+
+	// If we made it this far, then the trackpads behave independently.
+	const size_t grid_mappings_size[2] = {left_grid_mappings.size(), right_grid_mappings.size()};
+	const size_t grid_buttons_size[2] = {js->_leftGridButtons.size(), js->_rightGridButtons.size()};
+	for (int i = 0; i < 2; i++)
+	{
+		const finger_state_t *finger = &state[i].fingers[0];
+		const finger_state_t *prev_finger = &prev_state[i].fingers[0];
+
+		TOUCH_POINT point(
+		  finger->down ? make_optional<FloatXY>(finger->x, finger->y) : nullopt,
+		  prev_finger->down ? make_optional<FloatXY>(prev_finger->x, prev_finger->y) : nullopt,
+		  tpSize);
+
+		const trackpad_state_t *current_state = &state[i];
+		const TouchpadMode trackpad_mode = js->getSetting<TouchpadMode>(current_state->mode);
+		if (trackpad_mode == TouchpadMode::GRID_AND_STICK)
+		{
+			// Handle grid
+			int index = -1;
+			if (point.isDown())
+			{
+				auto &grid_size = *SettingsManager::getV<FloatXY>(current_state->grid_size);
+				point.posY += 1e-6f;
+				float row = ceilf(point.posY * grid_size.value().y()) - 1.f;
+				float col = ceilf(point.posX * grid_size.value().x()) - 1.f;
+				index = int(row * grid_size.value().x() + col);
+			}
+
+			for (size_t j = 0; j < grid_mappings_size[i]; j++)
+			{
+				const int grid_button = int(state[i].grid_start) + int(j);
+				auto optId = magic_enum::enum_cast<ButtonID>(grid_button);
+
+				// JSM can get touch button callbacks before the grid _buttons are setup at startup. Just skip then.
+				if (optId && grid_buttons_size[i] == grid_mappings_size[i])
+				{
+					js->handleButtonChange(*optId, j == index);
+				}
+			}
+
+			// Handle stick
+			if (i == 0)
+			{
+				js->handleLeftTouchStickChange(js->_leftTrackpads[0], point.isDown(), point.movX, point.movY, delta_time);
+			}
+			else
+			{
+				js->handleRightTouchStickChange(js->_rightTrackpads[0], point.isDown(), point.movX, point.movY, delta_time);
+			}
+		}
+		else if (trackpad_mode == TouchpadMode::MOUSE)
+		{
+			if (point.isDown())
+			{
+				const FloatXY sens = js->getSetting<FloatXY>(current_state->mouse_sens);
+				moveMouse(point.movX * sens.x(), point.movY * sens.y());
+			}
 		}
 	}
 }
@@ -425,6 +587,32 @@ void calibrateTriggers(shared_ptr<JoyShock> jc)
 		break;
 	}
 	jsl->SetTriggerEffect(jc->_handle, jc->_leftEffect, jc->_rightEffect);
+}
+
+static float GetTrackpadTrigger(shared_ptr<JoyShock> jc, uint64_t buttons, bool left_trackpad)
+{
+	if (buttons & (1ULL << (left_trackpad ? JSOFFSET_LTP_CAPTURE : JSOFFSET_RTP_CAPTURE)))
+	{
+		return 1.0f;
+	}
+	else if (jsl->GetTouchDown(jc->_handle, (left_trackpad ? 0 : 1), 0))
+	{
+		return 0.99f;
+	}
+	return 0.0f;
+}
+
+static float GetTouchpadTrigger(shared_ptr<JoyShock> jc, uint64_t buttons)
+{
+	if (buttons & (1ULL << JSOFFSET_CAPTURE))
+	{
+		return 1.0f;
+	}
+	else if (jsl->GetTouchDown(jc->_handle, 0, 0) || jsl->GetTouchDown(jc->_handle, 0, 1))
+	{
+		return 0.99f;
+	}
+	return 0.0f;
 }
 
 void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE lastState, IMU_STATE imuState, IMU_STATE lastImuState, float deltaTime)
@@ -1400,7 +1588,6 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		float lTrigger = jsl->GetLeftTrigger(jc->_handle);
 		jc->handleTriggerChange(ButtonID::ZL, ButtonID::ZLF, jc->getSetting<TriggerMode>(SettingID::ZL_MODE), lTrigger, jc->_leftEffect);
 
-		bool touch = jsl->GetTouchDown(jc->_handle, false) || jsl->GetTouchDown(jc->_handle, true);
 		switch (jc->_controllerType)
 		{
 		case JS_TYPE_DS:
@@ -1415,13 +1602,11 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 			jc->handleButtonChange(ButtonID::MIC, buttons & (1ULL << JSOFFSET_MIC));
 			// Don't break but continue onto DS4 stuff too
 		case JS_TYPE_DS4:
-		{
-			float triggerpos = buttons & (1ULL << JSOFFSET_CAPTURE) ? 1.f :
-			  touch                                              ? 0.99f :
-			                                                       0.f;
-			jc->handleTriggerChange(ButtonID::TOUCH, ButtonID::CAPTURE, jc->getSetting<TriggerMode>(SettingID::TOUCHPAD_DUAL_STAGE_MODE), triggerpos, jc->_unusedEffect);
-		}
-		break;
+			{
+				const float triggerpos = GetTouchpadTrigger(jc, buttons);
+				jc->handleTriggerChange(ButtonID::TOUCH, ButtonID::CAPTURE, jc->getSetting<TriggerMode>(SettingID::TOUCHPAD_DUAL_STAGE_MODE), triggerpos, jc->_unusedEffect);
+			}
+			break;
 		case JS_TYPE_XBOXONE_ELITE:
 			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL)); // Xbox Elite back paddles
 			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));
@@ -1450,9 +1635,9 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));        // R4 back button
 			jc->handleButtonChange(ButtonID::LSR, buttons & (1ULL << JSOFFSET_FNL));       // M1 button below left stick
 			jc->handleButtonChange(ButtonID::RSL, buttons & (1ULL << JSOFFSET_FNR));       // M2 button below right stick
+			jc->handleButtonChange(ButtonID::MISC1, buttons & (1ULL << JSOFFSET_MISC1));   // QAM button ("..." button)
 			jc->handleButtonChange(ButtonID::LTOUCH, buttons & (1ULL << JSOFFSET_LTOUCH)); // Left stick capacitive touch
 			jc->handleButtonChange(ButtonID::RTOUCH, buttons & (1ULL << JSOFFSET_RTOUCH)); // Right stick capacitive touch
-			jc->handleButtonChange(ButtonID::MISC1, buttons & (1ULL << JSOFFSET_MISC1));   // QAM button ("..." button)
 			break;
 		case JS_TYPE_G7_PRO_8K:
 			jc->handleButtonChange(ButtonID::LMINI, buttons & (1ULL << JSOFFSET_LMINI));     // L5 mini shoulder button
@@ -1484,10 +1669,10 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		case JS_TYPE_FLYDIGI_APEX5:
 			jc->handleButtonChange(ButtonID::LMINI, buttons & (1ULL << JSOFFSET_LMINI)); // LM mini shoulder button
 			jc->handleButtonChange(ButtonID::RMINI, buttons & (1ULL << JSOFFSET_RMINI)); // RM mini shoulder button
-			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));  // M2 back button (top left)
-			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));  // M1 back button (top right)
-			jc->handleButtonChange(ButtonID::LSR, buttons & (1ULL << JSOFFSET_FNL)); // M4 back button (bottom left)
-			jc->handleButtonChange(ButtonID::RSL, buttons & (1ULL << JSOFFSET_FNR)); // M3 back button (bottom right)
+			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));      // M2 back button (top left)
+			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));      // M1 back button (top right)
+			jc->handleButtonChange(ButtonID::LSR, buttons & (1ULL << JSOFFSET_FNL));     // M4 back button (bottom left)
+			jc->handleButtonChange(ButtonID::RSL, buttons & (1ULL << JSOFFSET_FNR));     // M3 back button (bottom right)
 			break;
 		case JS_TYPE_FLYDIGI_VADER5_PRO:
 			jc->handleButtonChange(ButtonID::LMINI, buttons & (1ULL << JSOFFSET_LMINI)); // LM mini shoulder button
@@ -1496,12 +1681,38 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 			// Fall through.
 		case JS_TYPE_FLYDIGI_VADER4_PRO:
 		case JS_TYPE_FLYDIGI_VADER3_PRO:
-			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));  // M2 back button (top left)
-			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));  // M1 back button (top right)
-			jc->handleButtonChange(ButtonID::LSR, buttons & (1ULL << JSOFFSET_FNL)); // M4 back button (bottom left)
-			jc->handleButtonChange(ButtonID::RSL, buttons & (1ULL << JSOFFSET_FNR)); // M3 back button (bottom right)
+			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));      // M2 back button (top left)
+			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));      // M1 back button (top right)
+			jc->handleButtonChange(ButtonID::LSR, buttons & (1ULL << JSOFFSET_FNL));     // M4 back button (bottom left)
+			jc->handleButtonChange(ButtonID::RSL, buttons & (1ULL << JSOFFSET_FNR));     // M3 back button (bottom right)
 			jc->handleButtonChange(ButtonID::MISC1, buttons & (1ULL << JSOFFSET_MISC1)); // C face button
 			jc->handleButtonChange(ButtonID::MISC2, buttons & (1ULL << JSOFFSET_MISC2)); // Z face button
+			break;
+		case JS_TYPE_STEAM_CONTROLLER:
+			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));      // Left back grip button
+			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));      // Right back grip button
+			break;
+		case JS_TYPE_STEAM_CONTROLLER_TRITON:
+			jc->handleButtonChange(ButtonID::LGRIP, buttons & (1ULL << JSOFFSET_LGRIP)); // Left grip sense
+			jc->handleButtonChange(ButtonID::RGRIP, buttons & (1ULL << JSOFFSET_RGRIP)); // Right grip sense
+			// Fall through.
+		case JS_TYPE_STEAM_DECK:
+			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));                  // L4 back button
+			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));                  // R4 back button
+			jc->handleButtonChange(ButtonID::LSR, buttons & (1ULL << JSOFFSET_FNL));                 // L5 back button
+			jc->handleButtonChange(ButtonID::RSL, buttons & (1ULL << JSOFFSET_FNR));                 // R5 back button
+			jc->handleButtonChange(ButtonID::MISC1, buttons & (1ULL << JSOFFSET_MISC1));             // QAM button ("..." button)
+			jc->handleButtonChange(ButtonID::LTP_CAPTURE, buttons & (1ULL << JSOFFSET_LTP_CAPTURE)); // Left trackpad click
+			jc->handleButtonChange(ButtonID::RTP_CAPTURE, buttons & (1ULL << JSOFFSET_RTP_CAPTURE)); // Right trackpad click
+			jc->handleButtonChange(ButtonID::LTOUCH, buttons & (1ULL << JSOFFSET_LTOUCH));           // Left stick capacitive touch
+			jc->handleButtonChange(ButtonID::RTOUCH, buttons & (1ULL << JSOFFSET_RTOUCH));           // Right stick capacitive touch
+			// Left/right trackpad touch triggers
+			{
+				const float left_triggerpos = GetTrackpadTrigger(jc, buttons, true);
+				jc->handleTriggerChange(ButtonID::LTP_TOUCH, ButtonID::LTP_CAPTURE, jc->getSetting<TriggerMode>(SettingID::LTP_DUAL_STAGE_MODE), left_triggerpos, jc->_unusedEffect);
+				const float right_triggerpos = GetTrackpadTrigger(jc, buttons, false);
+				jc->handleTriggerChange(ButtonID::RTP_TOUCH, ButtonID::RTP_CAPTURE, jc->getSetting<TriggerMode>(SettingID::RTP_DUAL_STAGE_MODE), right_triggerpos, jc->_unusedEffect);
+			}
 			break;
 		default:
 			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));
@@ -1679,11 +1890,30 @@ void connectDevices(bool mergeJoycons = true)
 	// }
 }
 
+static JSMButton *getMapping(ButtonID id)
+{
+	if (int(id) < mappings.size())
+	{
+		return &mappings[int(id)];
+	}
+	else if (id >= FIRST_RTP_BUTTON && int(id) - int(FIRST_RTP_BUTTON) < right_grid_mappings.size())
+	{
+		return &right_grid_mappings[int(id) - int(FIRST_RTP_BUTTON)];
+	}
+	else if (id >= FIRST_LTP_BUTTON && int(id) - int(FIRST_LTP_BUTTON) < left_grid_mappings.size())
+	{
+		return &left_grid_mappings[int(id) - int(FIRST_LTP_BUTTON)];
+	}
+	else if (id >= FIRST_TOUCH_BUTTON && int(id) - int(FIRST_TOUCH_BUTTON) < grid_mappings.size())
+	{
+		return &grid_mappings[int(id) - int(FIRST_TOUCH_BUTTON)];
+	}
+	return nullptr;
+}
+
 void updateSimPressPartner(ButtonID sim, ButtonID origin, const Mapping &newVal)
 {
-	JSMButton *button = int(sim) < mappings.size() ? &mappings[int(sim)] :
-	  int(sim) - FIRST_TOUCH_BUTTON < grid_mappings.size() ? &grid_mappings[int(sim) - FIRST_TOUCH_BUTTON] :
-	                                                      nullptr;
+	JSMButton *button = getMapping(sim);
 	if (button)
 		button->atSimPress(origin)->set(newVal);
 	else
@@ -1692,9 +1922,7 @@ void updateSimPressPartner(ButtonID sim, ButtonID origin, const Mapping &newVal)
 
 void updateDiagPressPartner(ButtonID diag, ButtonID origin, const Mapping &newVal)
 {
-	JSMButton *button = int(diag) < mappings.size()         ? &mappings[int(diag)] :
-	  int(diag) - FIRST_TOUCH_BUTTON < grid_mappings.size() ? &grid_mappings[int(diag) - FIRST_TOUCH_BUTTON] :
-	                                                         nullptr;
+	JSMButton *button = getMapping(diag);
 	if (button)
 		button->atDiagPress(origin)->set(newVal);
 	else
@@ -1739,6 +1967,8 @@ bool do_RESET_MAPPINGS(CmdRegistry *registry)
 	// TODO: make sure omitted settings don't get reset
 	SettingsManager::resetAllSettings();
 	ranges::for_each(grid_mappings, callReset);
+	ranges::for_each(left_grid_mappings, callReset);
+	ranges::for_each(right_grid_mappings, callReset);
 
 	os_mouse_speed = 1.0f;
 	last_flick_and_rotation = 0.0f;
@@ -1786,6 +2016,7 @@ bool do_RECONNECT_CONTROLLERS(string_view arguments, std::function<void()> loadO
 	connectDevices(mergeJoycons);
 	jsl->SetCallback(&joyShockPollCallback);
 	jsl->SetTouchCallback(&touchCallback);
+	jsl->SetTrackpadCallback(&trackpadCallback);
 
 	if (loadOnReconnect)
 		loadOnReconnect();
@@ -2197,6 +2428,26 @@ TriggerMode filterTouchpadDualStageMode(TriggerMode current, TriggerMode next)
 	return next;
 }
 
+TriggerMode filterLeftTrackpadDualStageMode(TriggerMode current, TriggerMode next)
+{
+	if (next == TriggerMode::X_LT || next == TriggerMode::X_RT || next == TriggerMode::INVALID)
+	{
+		COUT_WARN << SettingID::LTP_DUAL_STAGE_MODE << " doesn't support vigem analog modes.\n";
+		return current;
+	}
+	return next;
+}
+
+TriggerMode filterRightTrackpadDualStageMode(TriggerMode current, TriggerMode next)
+{
+	if (next == TriggerMode::X_LT || next == TriggerMode::X_RT || next == TriggerMode::INVALID)
+	{
+		COUT_WARN << SettingID::RTP_DUAL_STAGE_MODE << " doesn't support vigem analog modes.\n";
+		return current;
+	}
+	return next;
+}
+
 StickMode filterMotionStickMode(StickMode current, StickMode next)
 {
 	auto virtual_controller = SettingsManager::getV<ControllerScheme>(SettingID::VIRTUAL_CONTROLLER);
@@ -2320,16 +2571,16 @@ void refreshAutoLoadHelp(JSMAssignment<Switch> *autoloadCmd)
 	autoloadCmd->setHelp(ss.str());
 }
 
-void onNewGridDimensions(CmdRegistry *registry, const FloatXY &newGridDims)
+static void onNewGridDimensionsEx(CmdRegistry *registry, const FloatXY &newGridDims, vector<JSMButton> &in_grid_mappings, ButtonID grid_start)
 {
 	_ASSERT_EXPR(registry, U("You forgot to bind the command registry properly!"));
 	auto numberOfButtons = size_t(newGridDims.first * newGridDims.second);
 
-	if (numberOfButtons < grid_mappings.size())
+	if (numberOfButtons < in_grid_mappings.size())
 	{
 		// Remove all extra touch button commands
 		bool successfulRemove = true;
-		for (auto id = FIRST_TOUCH_BUTTON + numberOfButtons; successfulRemove; ++id)
+		for (auto id = int(grid_start) + numberOfButtons; successfulRemove; ++id)
 		{
 			string name(magic_enum::enum_name(*magic_enum::enum_cast<ButtonID>(id)));
 			successfulRemove = registry->Remove(name);
@@ -2339,32 +2590,47 @@ void onNewGridDimensions(CmdRegistry *registry, const FloatXY &newGridDims)
 		for (auto &js : handle_to_joyshock)
 		{
 			lock_guard guard(js.second->_context->callback_lock);
-			js.second->updateGridSize();
+			js.second->updateGridSize(grid_start);
 		}
 
 		// Remove extra touch button variables
-		while (grid_mappings.size() > numberOfButtons)
-			grid_mappings.pop_back();
+		while (in_grid_mappings.size() > numberOfButtons)
+			in_grid_mappings.pop_back();
 	}
-	else if (numberOfButtons > grid_mappings.size())
+	else if (numberOfButtons > in_grid_mappings.size())
 	{
 		// Add new touch button variables and commands
-		for (int id = FIRST_TOUCH_BUTTON + int(grid_mappings.size()); grid_mappings.size() < numberOfButtons; ++id)
+		for (int id = int(grid_start) + int(in_grid_mappings.size()); in_grid_mappings.size() < numberOfButtons; ++id)
 		{
 			JSMButton touchButton(*magic_enum::enum_cast<ButtonID>(id), Mapping::NO_MAPPING);
 			touchButton.setFilter(&filterMapping);
-			grid_mappings.push_back(touchButton);
-			registry->add(new JSMAssignment<Mapping>(grid_mappings.back()));
+			in_grid_mappings.push_back(touchButton);
+			registry->add(new JSMAssignment<Mapping>(in_grid_mappings.back()));
 		}
 
 		// For all joyshocks, remove extra touch DigitalButtons
 		for (auto &js : handle_to_joyshock)
 		{
 			lock_guard guard(js.second->_context->callback_lock);
-			js.second->updateGridSize();
+			js.second->updateGridSize(grid_start);
 		}
 	}
 	// Else numbers are the same, possibly just reconfigured
+}
+
+static void onNewGridDimensions(CmdRegistry *registry, const FloatXY &newGridDims)
+{
+	onNewGridDimensionsEx(registry, newGridDims, grid_mappings, FIRST_TOUCH_BUTTON);
+}
+
+static void onNewLeftGridDimensions(CmdRegistry *registry, const FloatXY &newGridDims)
+{
+	onNewGridDimensionsEx(registry, newGridDims, left_grid_mappings, FIRST_LTP_BUTTON);
+}
+
+static void onNewRightGridDimensions(CmdRegistry *registry, const FloatXY &newGridDims)
+{
+	onNewGridDimensionsEx(registry, newGridDims, right_grid_mappings, FIRST_RTP_BUTTON);
 }
 
 void onNewStickAxis(AxisMode newAxisMode, bool isVertical)
@@ -2811,7 +3077,19 @@ void initJsmSettings(CmdRegistry *commandRegistry)
 	touch_stick_axis->setFilter(&filterSignPair);
 	SettingsManager::add(touch_stick_axis);
 	commandRegistry->add((new JSMAssignment<AxisSignPair>(*touch_stick_axis))
-	                       ->setHelp("When in AIM mode, set stick X axis inversion. Valid values are the following:\nSTANDARD or 1, and INVERTED or -1"));
+	                       ->setHelp("When in AIM mode, set touchpad touchstick axis inversion. Valid values are the following:\nSTANDARD or 1, and INVERTED or -1"));
+
+	auto ltp_stick_axis = new JSMSetting<AxisSignPair>(SettingID::LTP_STICK_AXIS, { AxisMode::STANDARD, AxisMode::STANDARD });
+	ltp_stick_axis->setFilter(&filterSignPair);
+	SettingsManager::add(ltp_stick_axis);
+	commandRegistry->add((new JSMAssignment<AxisSignPair>(*ltp_stick_axis))
+	                       ->setHelp("When in AIM mode, set left trackpad touchstick axis inversion. Valid values are the following:\nSTANDARD or 1, and INVERTED or -1"));
+
+	auto rtp_stick_axis = new JSMSetting<AxisSignPair>(SettingID::RTP_STICK_AXIS, { AxisMode::STANDARD, AxisMode::STANDARD });
+	rtp_stick_axis->setFilter(&filterSignPair);
+	SettingsManager::add(rtp_stick_axis);
+	commandRegistry->add((new JSMAssignment<AxisSignPair>(*rtp_stick_axis))
+	                       ->setHelp("When in AIM mode, set right trackpad touchstick axis inversion. Valid values are the following:\nSTANDARD or 1, and INVERTED or -1"));
 
 	// Legacy command
 	auto aim_x_sign = new JSMSetting<AxisMode>(SettingID::STICK_AXIS_X, AxisMode::STANDARD);
@@ -3121,7 +3399,29 @@ void initJsmSettings(CmdRegistry *commandRegistry)
 	grid_size->addOnChangeListener(bind(&onNewGridDimensions, commandRegistry, placeholders::_1), true); // Call the listener now
 	SettingsManager::add(SettingID::GRID_SIZE, grid_size);
 	commandRegistry->add((new JSMAssignment<FloatXY>("GRID_SIZE", *grid_size))
-	                       ->setHelp("When TOUCHPAD_MODE is set to GRID_AND_STICK, this variable sets the number of rows and columns in the grid. The product of the two numbers need to be between 1 and 25."));
+	                       ->setHelp("When TOUCHPAD_MODE is set to GRID_AND_STICK, this variable sets the number of rows and columns in the grid. The product of the two numbers needs to be between 1 and 25."));
+
+	auto ltp_grid_size = new JSMVariable(FloatXY{ 2.f, 1.f });
+	ltp_grid_size->setFilter([](auto current, auto next)
+	  {
+		float floorX = floorf(next.x());
+		float floorY = floorf(next.y());
+		return floorX * floorY >= 1 && floorX * floorY <= 25 ? FloatXY{ floorX, floorY } : current; });
+	ltp_grid_size->addOnChangeListener(bind(&onNewLeftGridDimensions, commandRegistry, placeholders::_1), true); // Call the listener now
+	SettingsManager::add(SettingID::LTP_GRID_SIZE, ltp_grid_size);
+	commandRegistry->add((new JSMAssignment<FloatXY>("LTP_GRID_SIZE", *ltp_grid_size))
+	                       ->setHelp("When LTP_MODE is set to GRID_AND_STICK, this variable sets the number of rows and columns in the grid. The product of the two numbers needs to be between 1 and 25."));
+
+	auto rtp_grid_size = new JSMVariable(FloatXY{ 2.f, 1.f });
+	rtp_grid_size->setFilter([](auto current, auto next)
+	  {
+		float floorX = floorf(next.x());
+		float floorY = floorf(next.y());
+		return floorX * floorY >= 1 && floorX * floorY <= 25 ? FloatXY{ floorX, floorY } : current; });
+	rtp_grid_size->addOnChangeListener(bind(&onNewRightGridDimensions, commandRegistry, placeholders::_1), true); // Call the listener now
+	SettingsManager::add(SettingID::RTP_GRID_SIZE, rtp_grid_size);
+	commandRegistry->add((new JSMAssignment<FloatXY>("RTP_GRID_SIZE", *rtp_grid_size))
+	                       ->setHelp("When RTP_MODE is set to GRID_AND_STICK, this variable sets the number of rows and columns in the grid. The product of the two numbers needs to be between 1 and 25."));
 
 	auto touchpad_mode = new JSMSetting<TouchpadMode>(SettingID::TOUCHPAD_MODE, TouchpadMode::GRID_AND_STICK);
 	touchpad_mode->setFilter(&filterInvalidValue<TouchpadMode, TouchpadMode::INVALID>);
@@ -3129,36 +3429,110 @@ void initJsmSettings(CmdRegistry *commandRegistry)
 	commandRegistry->add((new JSMAssignment<TouchpadMode>("TOUCHPAD_MODE", *touchpad_mode))
 	                       ->setHelp("Assign a mode to the touchpad. Valid values are GRID_AND_STICK or MOUSE."));
 
+	auto ltp_mode = new JSMSetting<TouchpadMode>(SettingID::LTP_MODE, TouchpadMode::GRID_AND_STICK);
+	ltp_mode->setFilter(&filterInvalidValue<TouchpadMode, TouchpadMode::INVALID>);
+	SettingsManager::add(ltp_mode);
+	commandRegistry->add((new JSMAssignment<TouchpadMode>("LTP_MODE", *ltp_mode))
+	                       ->setHelp("Assign a mode to the left trackpad. Valid values are GRID_AND_STICK or MOUSE."));
+
+	auto rtp_mode = new JSMSetting<TouchpadMode>(SettingID::RTP_MODE, TouchpadMode::GRID_AND_STICK);
+	rtp_mode->setFilter(&filterInvalidValue<TouchpadMode, TouchpadMode::INVALID>);
+	SettingsManager::add(rtp_mode);
+	commandRegistry->add((new JSMAssignment<TouchpadMode>("RTP_MODE", *rtp_mode))
+	                       ->setHelp("Assign a mode to the right trackpad. Valid values are GRID_AND_STICK or MOUSE."));
+
 	auto touch_ring_mode = new JSMSetting<RingMode>(SettingID::TOUCH_RING_MODE, RingMode::OUTER);
 	touch_ring_mode->setFilter(&filterInvalidValue<RingMode, RingMode::INVALID>);
 	SettingsManager::add(touch_ring_mode);
 	commandRegistry->add((new JSMAssignment<RingMode>(*touch_ring_mode))
-	                       ->setHelp("Sets the ring mode for the touch stick. Valid values are INNER and OUTER"));
+	                       ->setHelp("Sets the ring mode for the touchpad touchstick. Valid values are INNER and OUTER"));
 
 	auto touch_stick_mode = new JSMSetting<StickMode>(SettingID::TOUCH_STICK_MODE, StickMode::NO_MOUSE);
 	touch_stick_mode->setFilter(&filterInvalidValue<StickMode, StickMode::INVALID>)->addOnChangeListener(bind(&updateRingModeFromStickMode, touch_ring_mode, ::placeholders::_1));
 	SettingsManager::add(touch_stick_mode);
 	commandRegistry->add((new JSMAssignment<StickMode>(*touch_stick_mode))
-	                       ->setHelp("Set a mouse mode for the touchpad stick. Valid values are the following:\nNO_MOUSE, AIM, FLICK, FLICK_ONLY, ROTATE_ONLY, MOUSE_RING, MOUSE_AREA, OUTER_RING, INNER_RING"));
+	                       ->setHelp("Set a mouse mode for the touchpad touchstick. Valid values are the following:\nNO_MOUSE, AIM, FLICK, FLICK_ONLY, ROTATE_ONLY, MOUSE_RING, MOUSE_AREA, OUTER_RING, INNER_RING"));
+
+	auto ltp_stick_ring_mode = new JSMSetting<RingMode>(SettingID::LTP_RING_MODE, RingMode::OUTER);
+	ltp_stick_ring_mode->setFilter(&filterInvalidValue<RingMode, RingMode::INVALID>);
+	SettingsManager::add(ltp_stick_ring_mode);
+	commandRegistry->add((new JSMAssignment<RingMode>(*ltp_stick_ring_mode))
+	                       ->setHelp("Sets the ring mode for the left trackpad touchstick. Valid values are INNER and OUTER"));
+
+	auto ltp_stick_mode = new JSMSetting<StickMode>(SettingID::LTP_STICK_MODE, StickMode::NO_MOUSE);
+	ltp_stick_mode->setFilter(&filterInvalidValue<StickMode, StickMode::INVALID>)->addOnChangeListener(bind(&updateRingModeFromStickMode, ltp_stick_ring_mode, ::placeholders::_1));
+	SettingsManager::add(ltp_stick_mode);
+	commandRegistry->add((new JSMAssignment<StickMode>(*ltp_stick_mode))
+	                       ->setHelp("Set a mouse mode for the left trackpad touchstick. Valid values are the following:\nNO_MOUSE, AIM, FLICK, FLICK_ONLY, ROTATE_ONLY, MOUSE_RING, MOUSE_AREA, OUTER_RING, INNER_RING"));
+
+	auto rtp_stick_ring_mode = new JSMSetting<RingMode>(SettingID::RTP_RING_MODE, RingMode::OUTER);
+	rtp_stick_ring_mode->setFilter(&filterInvalidValue<RingMode, RingMode::INVALID>);
+	SettingsManager::add(rtp_stick_ring_mode);
+	commandRegistry->add((new JSMAssignment<RingMode>(*rtp_stick_ring_mode))
+	                       ->setHelp("Sets the ring mode for the right trackpad touchstick. Valid values are INNER and OUTER"));
+
+	auto rtp_stick_mode = new JSMSetting<StickMode>(SettingID::RTP_STICK_MODE, StickMode::NO_MOUSE);
+	rtp_stick_mode->setFilter(&filterInvalidValue<StickMode, StickMode::INVALID>)->addOnChangeListener(bind(&updateRingModeFromStickMode, rtp_stick_ring_mode, ::placeholders::_1));
+	SettingsManager::add(rtp_stick_mode);
+	commandRegistry->add((new JSMAssignment<StickMode>(*rtp_stick_mode))
+	                       ->setHelp("Set a mouse mode for the right trackpad touchstick. Valid values are the following:\nNO_MOUSE, AIM, FLICK, FLICK_ONLY, ROTATE_ONLY, MOUSE_RING, MOUSE_AREA, OUTER_RING, INNER_RING"));
 
 	auto touch_deadzone_inner = new JSMSetting<float>(SettingID::TOUCH_DEADZONE_INNER, 0.3f);
 	touch_deadzone_inner->setFilter(&filterPositive);
 	SettingsManager::add(touch_deadzone_inner);
 	commandRegistry->add((new JSMAssignment<float>(*touch_deadzone_inner))
-	                       ->setHelp("Sets the radius of the circle in which a touch stick input sends no output."));
+	                       ->setHelp("Sets the radius of the circle in which a touchpad touchstick input sends no output."));
+
+	auto ltp_stick_deadzone_inner = new JSMSetting<float>(SettingID::LTP_DEADZONE_INNER, 0.3f);
+	ltp_stick_deadzone_inner->setFilter(&filterPositive);
+	SettingsManager::add(ltp_stick_deadzone_inner);
+	commandRegistry->add((new JSMAssignment<float>(*ltp_stick_deadzone_inner))
+	                       ->setHelp("Sets the radius of the circle in which a left trackpad touchstick input sends no output."));
+
+	auto rtp_stick_deadzone_inner = new JSMSetting<float>(SettingID::RTP_DEADZONE_INNER, 0.3f);
+	rtp_stick_deadzone_inner->setFilter(&filterPositive);
+	SettingsManager::add(rtp_stick_deadzone_inner);
+	commandRegistry->add((new JSMAssignment<float>(*rtp_stick_deadzone_inner))
+	                       ->setHelp("Sets the radius of the circle in which a right trackpad touchstick input sends no output."));
 
 	auto touch_stick_radius = new JSMSetting<float>(SettingID::TOUCH_STICK_RADIUS, 300.f);
 	touch_stick_radius->setFilter([](auto current, auto next)
 	  { return filterPositive(current, floorf(next)); });
 	SettingsManager::add(touch_stick_radius);
 	commandRegistry->add((new JSMAssignment<float>(*touch_stick_radius))
-	                       ->setHelp("Set the radius of the touchpad stick. The center of the stick is always the first point of contact. Use a very large value (ex: 800) to use it as swipe gesture."));
+	                       ->setHelp("Set the radius of the touchpad touchstick. The center of the stick is always the first point of contact. Use a very large value (ex: 800) to use it as swipe gesture."));
+
+	auto ltp_stick_radius = new JSMSetting<float>(SettingID::LTP_STICK_RADIUS, 300.f);
+	ltp_stick_radius->setFilter([](auto current, auto next)
+	  { return filterPositive(current, floorf(next)); });
+	SettingsManager::add(ltp_stick_radius);
+	commandRegistry->add((new JSMAssignment<float>(*ltp_stick_radius))
+	                       ->setHelp("Set the radius of the left trackpad touchstick. The center of the stick is always the first point of contact. Use a very large value (ex: 800) to use it as swipe gesture."));
+
+	auto rtp_stick_radius = new JSMSetting<float>(SettingID::RTP_STICK_RADIUS, 300.f);
+	rtp_stick_radius->setFilter([](auto current, auto next)
+	  { return filterPositive(current, floorf(next)); });
+	SettingsManager::add(rtp_stick_radius);
+	commandRegistry->add((new JSMAssignment<float>(*rtp_stick_radius))
+	                       ->setHelp("Set the radius of the right trackpad touchstick. The center of the stick is always the first point of contact. Use a very large value (ex: 800) to use it as swipe gesture."));
 
 	auto touchpad_sens = new JSMSetting<FloatXY>(SettingID::TOUCHPAD_SENS, { 1.f, 1.f });
 	touchpad_sens->setFilter(filterFloatPair);
 	SettingsManager::add(touchpad_sens);
 	commandRegistry->add((new JSMAssignment<FloatXY>(*touchpad_sens))
 	                       ->setHelp("Changes the sensitivity of the touchpad when set as a mouse. Enter a second value for a different vertical sensitivity."));
+
+	auto ltp_mouse_sens = new JSMSetting<FloatXY>(SettingID::LTP_SENS, { 1.f, 1.f });
+	ltp_mouse_sens->setFilter(filterFloatPair);
+	SettingsManager::add(ltp_mouse_sens);
+	commandRegistry->add((new JSMAssignment<FloatXY>(*ltp_mouse_sens))
+	                       ->setHelp("Changes the sensitivity of the left trackpad when set as a mouse. Enter a second value for a different vertical sensitivity."));
+
+	auto rtp_mouse_sens = new JSMSetting<FloatXY>(SettingID::RTP_SENS, { 1.f, 1.f });
+	rtp_mouse_sens->setFilter(filterFloatPair);
+	SettingsManager::add(rtp_mouse_sens);
+	commandRegistry->add((new JSMAssignment<FloatXY>(*rtp_mouse_sens))
+	                       ->setHelp("Changes the sensitivity of the right trackpad when set as a mouse. Enter a second value for a different vertical sensitivity."));
 
 	auto hide_minimized = new JSMVariable<Switch>(Switch::OFF);
 	minimizeThread.reset(new PollingThread( "Minimize thread", [] (void *param)
@@ -3188,6 +3562,18 @@ void initJsmSettings(CmdRegistry *commandRegistry)
 	SettingsManager::add(touch_ds_mode);
 	commandRegistry->add((new JSMAssignment<TriggerMode>(*touch_ds_mode))
 	                       ->setHelp("Dual stage mode for the touchpad TOUCH and CAPTURE (i.e. click) bindings."));
+
+	auto ltp_dual_stage_mode = new JSMSetting<TriggerMode>(SettingID::LTP_DUAL_STAGE_MODE, TriggerMode::NO_SKIP);
+	ltp_dual_stage_mode->setFilter(&filterLeftTrackpadDualStageMode);
+	SettingsManager::add(ltp_dual_stage_mode);
+	commandRegistry->add((new JSMAssignment<TriggerMode>(*ltp_dual_stage_mode))
+	                       ->setHelp("Dual stage mode for the left trackpad LTP_TOUCH and LTP_CAPTURE bindings."));
+
+	auto rtp_dual_stage_mode = new JSMSetting<TriggerMode>(SettingID::RTP_DUAL_STAGE_MODE, TriggerMode::NO_SKIP);
+	rtp_dual_stage_mode->setFilter(&filterRightTrackpadDualStageMode);
+	SettingsManager::add(rtp_dual_stage_mode);
+	commandRegistry->add((new JSMAssignment<TriggerMode>(*rtp_dual_stage_mode))
+	                       ->setHelp("Dual stage mode for the right trackpad RTP_TOUCH and RTP_CAPTURE bindings."));
 
 	auto rumble_enable = new JSMVariable<Switch>(Switch::ON);
 	rumble_enable->setFilter(&filterInvalidValue<Switch, Switch::INVALID>);
@@ -3430,7 +3816,9 @@ int main(int argc, char *argv[])
 	jsl.reset(JslWrapper::getNew());
 	whitelister.reset(Whitelister::getNew(false));
 
-	grid_mappings.reserve(int(ButtonID::T25) - FIRST_TOUCH_BUTTON); // This makes sure the items will never get copied and cause crashes
+	grid_mappings.reserve(NUM_TOUCH_BUTTONS); // This makes sure the items will never get copied and cause crashes
+	left_grid_mappings.reserve(NUM_LTP_BUTTONS);
+	right_grid_mappings.reserve(NUM_RTP_BUTTONS);
 	mappings.reserve(MAPPING_SIZE);
 	for (int id = 0; id < MAPPING_SIZE; ++id)
 	{
@@ -3539,6 +3927,7 @@ int main(int argc, char *argv[])
 	connectDevices();
 	jsl->SetCallback(&joyShockPollCallback);
 	jsl->SetTouchCallback(&touchCallback);
+	jsl->SetTrackpadCallback(&trackpadCallback);
 	
 #ifndef _WIN32
 	// On Linux, skip tray icon creation to avoid GTK issues in headless environments

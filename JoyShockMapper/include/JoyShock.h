@@ -48,7 +48,9 @@ public:
 	// These two large functions are defined further down
 	void processStick(float stickX, float stickY, Stick &stick, float mouseCalibrationFactor, float deltaTime, bool &anyStickInput, bool &lockMouse, float &camSpeedX, float &camSpeedY);
 
-	void handleTouchStickChange(TouchStick &ts, bool down, short movX, short movY, float delta_time);
+	void handleTouchStickChange(TouchStick &ts, bool down, float movX, float movY, float delta_time);
+	void handleLeftTouchStickChange(LeftTouchStick &ts, bool down, float movX, float movY, float delta_time);
+	void handleRightTouchStickChange(RightTouchStick &ts, bool down, float movX, float movY, float delta_time);
 
 	bool hasVirtualController();
 
@@ -65,7 +67,7 @@ public:
 	void applyOneEuroFilter(float rawX, float rawY, float deltaTime, float &outX, float &outY);
 	void resetOneEuroFilter();
 
-	void handleButtonChange(ButtonID id, bool pressed, int touchpadID = -1);
+	void handleButtonChange(ButtonID id, bool pressed, int touchpadID = -1, int leftTrackpadID = -1, int rightTrackpadID = -1);
 
 	void handleTriggerChange(ButtonID softIndex, ButtonID fullIndex, TriggerMode mode, float position, AdaptiveTriggerSetting &trigger_rumble);
 
@@ -74,14 +76,18 @@ public:
 	// return true if it hits the outer deadzone
 	bool processDeadZones(float &x, float &y, float innerDeadzone, float outerDeadzone);
 
-	void updateGridSize();
+	void updateGridSize(ButtonID grid_start);
 
 	bool processGyroStick(float stickX, float stickY, float stickLength, StickMode stickMode, bool forceOutput);
 
 	shared_ptr<DigitalButton::Context> _context;
 	vector<DigitalButton> _buttons;
 	vector<DigitalButton> _gridButtons;
+	vector<DigitalButton> _leftGridButtons;
+	vector<DigitalButton> _rightGridButtons;
 	vector<TouchStick> _touchpads;
+	vector<LeftTouchStick> _leftTrackpads;
+	vector<RightTouchStick> _rightTrackpads;
 	chrono::steady_clock::time_point _timeNow;
 	shared_ptr<MotionIf> _motion;
 	int _handle;
@@ -137,6 +143,9 @@ private:
 
 	void sendRumble(int smallRumble, int bigRumble);
 
+	JSMButton *getMapping(ButtonID id);
+	DigitalButton *getDigitalButton(ButtonID id, int touchpadID = -1, int leftTrackpadID = -1, int rightTrackpadID = -1);
+
 	DigitalButton *getMatchingSimBtn(ButtonID index);
 	DigitalButton *getMatchingDiagBtn(ButtonID index, optional<MapIterator> &iter);
 
@@ -170,6 +179,8 @@ private:
 
 	vector<DstState> _triggerState; // State of analog triggers when skip mode is active
 	vector<deque<float>> _prevTriggerPosition;
+
+	void updateGridSizeEx(vector<JSMButton> &in_grid_mappings, vector<DigitalButton> &in_grid_buttons);
 };
 
 template<>

@@ -56,6 +56,11 @@ public:
 		return JslGetTouchState(deviceId, previous);
 	}
 
+	void GetTrackpadState(int deviceId, trackpad_state_t *trackpads_state) override
+	{
+		// Not supported by JSL.
+	}
+
 	bool GetTouchpadDimension(int deviceId, int& sizeX, int& sizeY) override
 	{
 		return JslGetTouchpadDimension(deviceId, sizeX, sizeY);
@@ -131,19 +136,19 @@ public:
 		return JslGetTouchId(deviceId, secondTouch);
 	}
 
-	bool GetTouchDown(int deviceId, bool secondTouch = false) override
+	bool GetTouchDown(int deviceId, int touchpad, int finger) override
 	{
-		return JslGetTouchDown(deviceId, secondTouch);
+		return JslGetTouchDown(deviceId, (finger != 0));
 	}
 
-	float GetTouchX(int deviceId, bool secondTouch = false) override
+	float GetTouchX(int deviceId, int touchpad, int finger) override
 	{
-		return JslGetTouchX(deviceId, secondTouch);
+		return JslGetTouchX(deviceId, (finger != 0));
 	}
 
-	float GetTouchY(int deviceId, bool secondTouch = false) override
+	float GetTouchY(int deviceId, int touchpad, int finger) override
 	{
-		return JslGetTouchY(deviceId, secondTouch);
+		return JslGetTouchY(deviceId, (finger != 0));
 	}
 
 	float GetStickStep(int deviceId) override
@@ -204,6 +209,11 @@ public:
 	void SetTouchCallback(void (*callback)(int, TOUCH_STATE, TOUCH_STATE, float)) override
 	{
 		JslSetTouchCallback(callback);
+	}
+
+	void SetTrackpadCallback(void (*callback)(int, const trackpad_state_t *, const trackpad_state_t *, float)) override
+	{
+		// Not supported by JSL.
 	}
 
 	int GetControllerType(int deviceId) override

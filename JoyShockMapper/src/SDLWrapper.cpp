@@ -58,8 +58,10 @@ struct ControllerDevice
 	  , _vendorId(JS_VENDOR_UNKNOWN)
 	  , _productId(JS_PRODUCT_UNKNOWN)
 	{
-		_prevTouchState.t0Down = false;
-		_prevTouchState.t1Down = false;
+		_has_trackpads = false;
+		memset(_trackpads_state, 0, sizeof(_trackpads_state));
+		memset(_prev_trackpads_state, 0, sizeof(_prev_trackpads_state));
+
 		if (SDL_IsGamepad(id))
 		{
 			_sdlController = nullptr;
@@ -84,6 +86,64 @@ struct ControllerDevice
 					if (_has_accel)
 					{
 						SDL_SetGamepadSensorEnabled(_sdlController, SDL_SENSOR_ACCEL, true);
+					}
+
+					// Initialize touchpads/trackpads
+					int num_trackpads = SDL_GetNumGamepadTouchpads(_sdlController);
+					num_trackpads = clamp(num_trackpads, 0, 2);
+					if (num_trackpads > 0)
+					{
+						// Two configurations supported:
+						// 1. One touchpad, up to two fingers simultaneously.
+						// 2. Two trackpads, only one finger per trackpad.
+						const int max_fingers = (num_trackpads == 1 ? 2 : 1);
+						for (int i = 0; i < num_trackpads; i++)
+						{
+							int num_fingers = SDL_GetNumGamepadTouchpadFingers(_sdlController, i);
+							num_fingers = clamp(num_fingers, 0, max_fingers);
+							if (num_fingers > 0)
+							{
+								_has_trackpads = true;
+								_trackpads_state[i].enabled = true;
+								for (int j = 0; j < num_fingers; j++)
+								{
+									_trackpads_state[i].fingers[j].enabled = true;
+								}
+							}
+						}
+
+						if (_has_trackpads)
+						{
+							if (num_trackpads == 2)
+							{
+								// Left trackpad settings
+								trackpad_state_t *left_trackpad = &_trackpads_state[0];
+								left_trackpad->grid_start = FIRST_LTP_BUTTON;
+								left_trackpad->grid_end = LAST_LTP_BUTTON;
+								left_trackpad->mode = SettingID::LTP_MODE;
+								left_trackpad->grid_size = SettingID::LTP_GRID_SIZE;
+								left_trackpad->mouse_sens = SettingID::LTP_SENS;
+
+								// Right trackpad settings
+								trackpad_state_t *right_trackpad = &_trackpads_state[1];
+								right_trackpad->grid_start = FIRST_RTP_BUTTON;
+								right_trackpad->grid_end = LAST_RTP_BUTTON;
+								right_trackpad->mode = SettingID::RTP_MODE;
+								right_trackpad->grid_size = SettingID::RTP_GRID_SIZE;
+								right_trackpad->mouse_sens = SettingID::RTP_SENS;
+							}
+							else // num_trackpads == 1
+							{
+								// Touchpad settings
+								trackpad_state_t *touchpad = &_trackpads_state[0];
+								touchpad->grid_start = FIRST_TOUCH_BUTTON;
+								touchpad->grid_end = LAST_TOUCH_BUTTON;
+								touchpad->mode = SettingID::TOUCHPAD_MODE;
+								touchpad->grid_size = SettingID::GRID_SIZE;
+								touchpad->mouse_sens = SettingID::TOUCHPAD_SENS;
+							}
+							memcpy(_prev_trackpads_state, _trackpads_state, sizeof(_prev_trackpads_state));
+						}
 					}
 
 					_vendorId = SDL_GetGamepadVendor(_sdlController);
@@ -165,6 +225,29 @@ struct ControllerDevice
 						if (_productId == JS_PRODUCT_NINTENDO_SWITCH2_PRO)
 						{
 							_ctrlr_type = JS_TYPE_SWITCH2_PRO_CONTROLLER;
+						}
+						break;
+					case JS_VENDOR_VALVE:
+						switch (_productId)
+						{
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_CHELL:
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_D0G_WIRED:
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_D0G_BT:
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_D0G_BT2:
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_WIRELESS:
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_V2_HEADCRAB_WIRED:
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_V2_HEADCRAB_BT:
+							_ctrlr_type = JS_TYPE_STEAM_CONTROLLER;
+							break;
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_NEPTUNE:
+							_ctrlr_type = JS_TYPE_STEAM_DECK;
+							break;
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_TRITON:
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_TRITON_BLE:
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_TRITON_PROTEUS:
+						case JS_PRODUCT_VALVE_STEAM_CONTROLLER_TRITON_NEREID:
+							_ctrlr_type = JS_TYPE_STEAM_CONTROLLER_TRITON;
+							break;
 						}
 						break;
 					}
@@ -323,7 +406,9 @@ public:
 	AdaptiveTriggerSetting _rightTriggerEffect;
 	uint8_t _micLight = 0;
 	SDL_Gamepad *_sdlController = nullptr;
-	TOUCH_STATE _prevTouchState;
+	bool _has_trackpads;
+	trackpad_state_t _trackpads_state[2];
+	trackpad_state_t _prev_trackpads_state[2];
 };
 
 struct SdlInstance : public JslWrapper
@@ -527,11 +612,11 @@ public:
 					memset(&dummy2, 0, sizeof(dummy2));
 					g_callback(iter->first, dummy1, dummy1, dummy2, dummy2, tick_time);
 				}
-				if (g_touch_callback)
+				if (g_trackpad_callback && iter->second->_has_trackpads)
 				{
-					TOUCH_STATE touch = GetTouchState(iter->first, false);
-					g_touch_callback(iter->first, touch, iter->second->_prevTouchState, tick_time);
-					iter->second->_prevTouchState = touch;
+					GetTrackpadState(iter->first, iter->second->_trackpads_state);
+					g_trackpad_callback(iter->first, iter->second->_trackpads_state, iter->second->_prev_trackpads_state, tick_time);
+					memcpy(iter->second->_prev_trackpads_state, iter->second->_trackpads_state, sizeof(iter->second->_prev_trackpads_state));
 				}
 				// Perform rumble
 				SDL_RumbleGamepad(iter->second->_sdlController, iter->second->_big_rumble, iter->second->_small_rumble, Uint32(tick_time + 5));
@@ -544,7 +629,7 @@ public:
 	SDL_JoystickID * _joysticksArray = nullptr;
 	map<int, ControllerDevice *> _controllerMap;
 	void (*g_callback)(int, JOY_SHOCK_STATE, JOY_SHOCK_STATE, IMU_STATE, IMU_STATE, float) = nullptr;
-	void (*g_touch_callback)(int, TOUCH_STATE, TOUCH_STATE, float) = nullptr;
+	void (*g_trackpad_callback)(int, const trackpad_state_t *, const trackpad_state_t *, float) = nullptr;
 	atomic_bool keep_polling = false;
 	mutex controller_lock;
 
@@ -654,7 +739,7 @@ public:
 		lock_guard guard(controller_lock);
 		keep_polling = false;
 		g_callback = nullptr;
-		g_touch_callback = nullptr;
+		g_trackpad_callback = nullptr;
 		auto iter = _controllerMap.begin();
 		while (iter != _controllerMap.end())
 		{
@@ -703,22 +788,29 @@ public:
 
 	TOUCH_STATE GetTouchState(int deviceId, bool previous) override
 	{
+		// Only used by JSL.
 		TOUCH_STATE state;
-		memset(&state, 0, sizeof(TOUCH_STATE));
-
-		if (_controllerMap[deviceId] == nullptr ||
-			_controllerMap[deviceId]->_sdlController == nullptr ||
-			SDL_GetNumGamepadTouchpads(_controllerMap[deviceId]->_sdlController) <= 0)
-		{
-			return state;
-		}
-
-		if (!SDL_GetGamepadTouchpadFinger(_controllerMap[deviceId]->_sdlController, 0, 0, &state.t0Down, &state.t0X, &state.t0Y, nullptr) || 
-			!SDL_GetGamepadTouchpadFinger(_controllerMap[deviceId]->_sdlController, 0, 1, &state.t1Down, &state.t1X, &state.t1Y, nullptr))
-		{
-			CERR << "Cannot get finger state: " << SDL_GetError() << '\n';
-		}
+		memset(&state, 0, sizeof(state));
 		return state;
+	}
+
+	void GetTrackpadState(int deviceId, trackpad_state_t *trackpads_state) override
+	{
+		for (int i = 0; i < 2; i++)
+		{
+			trackpad_state_t *trackpad = &trackpads_state[i];
+			if (trackpad->enabled)
+			{
+				for (int j = 0; j < 2; j++)
+				{
+					finger_state_t *finger = &trackpad->fingers[j];
+					if (finger->enabled)
+					{
+						SDL_GetGamepadTouchpadFinger(_controllerMap[deviceId]->_sdlController, i, j, &finger->down, &finger->x, &finger->y, nullptr);
+					}
+				}
+			}
+		}
 	}
 
 	bool GetTouchpadDimension(int deviceId, int &sizeX, int &sizeY) override
@@ -730,10 +822,37 @@ public:
 			switch (_controllerMap[deviceId]->_ctrlr_type)
 			{
 			case JS_TYPE_DS4:
-			case JS_TYPE_DS:
 				// Matching SDL resolution
 				sizeX = 1920;
 				sizeY = 920;
+				break;
+			case JS_TYPE_DS:
+				// Matching SDL resolution
+				sizeX = 1920;
+				sizeY = 1070;
+				break;
+			case JS_TYPE_STEAM_CONTROLLER:
+				// Steam Controller (2015) has dual 40 mm trackpads, but the
+				// actual sensor diameter is 38 mm (see GlidePoint TM040040):
+				// https://www.cirque.com/glidepoint-circle-trackpads
+				// Scale the input to match a typical mouse:
+				// 800 counts/inch * 1 inch / 25.4 mm * 38 mm = 1196.9 counts
+				sizeX = 1197;
+				sizeY = 1197;
+				break;
+			case JS_TYPE_STEAM_DECK:
+				// Steam Deck has dual 32.5 mm trackpads.
+				// Scale the input to match a typical mouse:
+				// 800 counts/inch * 1 inch / 25.4 mm * 32.5 mm = 1023.6 counts
+				sizeX = 1024;
+				sizeY = 1024;
+				break;
+			case JS_TYPE_STEAM_CONTROLLER_TRITON:
+				// Steam Controller has dual 34.5 mm trackpads.
+				// Scale the input to match a typical mouse:
+				// 800 counts/inch * 1 inch / 25.4 mm * 34.5 mm = 1086.6 counts
+				sizeX = 1087;
+				sizeY = 1087;
 				break;
 			default:
 				sizeX = 0;
@@ -805,13 +924,13 @@ public:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_SR : 0;
 			break;
 		case JS_TYPE_HORI_STEAM:
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;  // R4 back button
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;   // L4 back button
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M2 button below right stick
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M1 button below left stick
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC2) ? 1ULL << JSOFFSET_MISC1 : 0;       // QAM button ("..." button)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC3) ? 1ULL << JSOFFSET_LTOUCH : 0;      // Left stick capacitive touch
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC4) ? 1ULL << JSOFFSET_RTOUCH : 0;      // Right stick capacitive touch
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_MISC1 : 0;            // QAM button ("..." button)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;       // R4 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;        // L4 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0;      // M2 button below right stick
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;       // M1 button below left stick
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_LEFT_STICK) ? 1ULL << JSOFFSET_LTOUCH : 0;  // Left stick capacitive touch
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_RIGHT_STICK) ? 1ULL << JSOFFSET_RTOUCH : 0; // Right stick capacitive touch
 			break;
 		case JS_TYPE_G7_PRO_8K:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_CAPTURE : 0;     // Share button
@@ -843,8 +962,8 @@ public:
 		case JS_TYPE_FLYDIGI_APEX5:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;  // M1 back button (top right)
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;   // M2 back button (top left)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M3 back button (bottom left)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M4 back button (bottom right)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M3 back button (bottom right)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M4 back button (bottom left)
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC2) ? 1ULL << JSOFFSET_LMINI : 0;       // LM mini shoulder button
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC3) ? 1ULL << JSOFFSET_RMINI : 0;       // RM mini shoulder button
 			break;
@@ -857,10 +976,30 @@ public:
 		case JS_TYPE_FLYDIGI_VADER3_PRO:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;  // M1 back button (top right)
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;   // M2 back button (top left)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M3 back button (bottom left)
-			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M4 back button (bottom right)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0; // M3 back button (bottom right)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;  // M4 back button (bottom left)
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC2) ? 1ULL << JSOFFSET_MISC1 : 0;       // C face button
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC3) ? 1ULL << JSOFFSET_MISC2 : 0;       // Z face button
+			break;
+		case JS_TYPE_STEAM_CONTROLLER:
+			// Only the back grip buttons are exposed by SDL3.
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;   // Right back grip button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;    // Left back grip button
+			break;
+		case JS_TYPE_STEAM_CONTROLLER_TRITON:
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_LEFT_GRIP) ? 1ULL << JSOFFSET_LGRIP : 0;    // Left grip sense
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_RIGHT_GRIP) ? 1ULL << JSOFFSET_RGRIP : 0;   // Right grip sense
+			// Fall through.
+		case JS_TYPE_STEAM_DECK:
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_MISC1 : 0;              // QAM button ("..." button)
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1) ? 1ULL << JSOFFSET_SR : 0;         // R4 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE1) ? 1ULL << JSOFFSET_SL : 0;          // L4 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2) ? 1ULL << JSOFFSET_FNR : 0;        // R5 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_LEFT_PADDLE2) ? 1ULL << JSOFFSET_FNL : 0;         // L5 back button
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_TOUCHPAD) ? 1ULL << JSOFFSET_LTP_CAPTURE : 0;     // Left trackpad click
+			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC2) ? 1ULL << JSOFFSET_RTP_CAPTURE : 0;        // Right trackpad click
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_LEFT_STICK) ? 1ULL << JSOFFSET_LTOUCH : 0;    // Left stick capacitive touch
+			buttons |= SDL_GetGamepadCapSense(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_CAPSENSE_RIGHT_STICK) ? 1ULL << JSOFFSET_RTOUCH : 0;   // Right stick capacitive touch
 			break;
 		default:
 			buttons |= SDL_GetGamepadButton(_controllerMap[deviceId]->_sdlController, SDL_GAMEPAD_BUTTON_MISC1) ? 1ULL << JSOFFSET_MISC1 : 0;
@@ -958,30 +1097,34 @@ public:
 		return int();
 	}
 
-	bool GetTouchDown(int deviceId, bool secondTouch)
+	bool GetTouchDown(int deviceId, int touchpad, int finger) override
 	{
-		bool touchState = 0;
-		return SDL_GetGamepadTouchpadFinger(_controllerMap[deviceId]->_sdlController, 0, secondTouch ? 1 : 0, &touchState, nullptr, nullptr, nullptr) ? touchState : false;
+		bool touchState = false;
+		if (SDL_GetGamepadTouchpadFinger(_controllerMap[deviceId]->_sdlController, touchpad, finger, &touchState, nullptr, nullptr, nullptr))
+		{
+			return touchState;
+		}
+		return false;
 	}
 
-	float GetTouchX(int deviceId, bool secondTouch = false) override
+	float GetTouchX(int deviceId, int touchpad, int finger) override
 	{
-		float x = 0;
-		if (SDL_GetGamepadTouchpadFinger(_controllerMap[deviceId]->_sdlController, 0, secondTouch ? 1 : 0, nullptr, nullptr, &x, nullptr))
+		float x = 0.0f;
+		if (SDL_GetGamepadTouchpadFinger(_controllerMap[deviceId]->_sdlController, touchpad, finger, nullptr, nullptr, &x, nullptr))
 		{
 			return x;
 		}
-		return x;
+		return 0.0f;
 	}
 
-	float GetTouchY(int deviceId, bool secondTouch = false) override
+	float GetTouchY(int deviceId, int touchpad, int finger) override
 	{
-		float y = 0;
-		if (SDL_GetGamepadTouchpadFinger(_controllerMap[deviceId]->_sdlController, 0, secondTouch ? 1 : 0, nullptr, nullptr, &y, nullptr))
+		float y = 0.0f;
+		if (SDL_GetGamepadTouchpadFinger(_controllerMap[deviceId]->_sdlController, touchpad, finger, nullptr, nullptr, &y, nullptr))
 		{
 			return y;
 		}
-		return y;
+		return 0.0f;
 	}
 
 	float GetStickStep(int deviceId) override
@@ -1037,8 +1180,13 @@ public:
 
 	void SetTouchCallback(void (*callback)(int, TOUCH_STATE, TOUCH_STATE, float)) override
 	{
+		// Only used by JSL.
+	}
+
+	void SetTrackpadCallback(void (*callback)(int, const trackpad_state_t *, const trackpad_state_t *, float)) override
+	{
 		lock_guard guard(controller_lock);
-		g_touch_callback = callback;
+		g_trackpad_callback = callback;
 	}
 
 	int GetControllerType(int deviceId) override

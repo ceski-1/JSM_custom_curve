@@ -13,6 +13,8 @@ protected:
 	DigitalButton* _negativeButton;
 	DigitalButton* _positiveButton;
 	int _touchpadId;
+	int _leftTrackpadId;
+	int _rightTrackpadId;
 	ButtonID _pressedBtn;
 
 public:
@@ -22,11 +24,13 @@ public:
 		, _negativeButton(nullptr)
 		, _positiveButton(nullptr)
 		, _touchpadId(-1)
+		, _leftTrackpadId(-1)
+		, _rightTrackpadId(-1)
 		, _pressedBtn(ButtonID::NONE)
 	{
 	}
 
-	void init(DigitalButton& negativeBtn, DigitalButton& positiveBtn, int touchpadId = -1);
+	void init(DigitalButton& negativeBtn, DigitalButton& positiveBtn, int touchpadId = -1, int _leftTrackpadId = -1, int _rightTrackpadId = -1);
 
 	inline bool isInitialized() const
 	{
@@ -71,6 +75,8 @@ struct Stick
 	ButtonID _upId;
 	ButtonID _downId;
 	int _touchpadIndex = -1;
+	int _leftTrackpadIndex = -1;
+	int _rightTrackpadIndex = -1;
 
 	// Flick stick
 	chrono::steady_clock::time_point started_flick;
@@ -117,3 +123,28 @@ struct TouchStick : public Stick
 	}
 };
 
+struct LeftTouchStick : public Stick
+{
+	FloatXY _currentLocation = { 0.f, 0.f };
+	bool _prevDown = false;
+	ScrollAxis verticalScroll;
+	map<ButtonID, DigitalButton> buttons;
+	LeftTouchStick(int index, shared_ptr<DigitalButton::Context> common, int handle);
+	inline bool wasDown() const
+	{
+		return _prevDown;
+	}
+};
+
+struct RightTouchStick : public Stick
+{
+	FloatXY _currentLocation = { 0.f, 0.f };
+	bool _prevDown = false;
+	ScrollAxis verticalScroll;
+	map<ButtonID, DigitalButton> buttons;
+	RightTouchStick(int index, shared_ptr<DigitalButton::Context> common, int handle);
+	inline bool wasDown() const
+	{
+		return _prevDown;
+	}
+};

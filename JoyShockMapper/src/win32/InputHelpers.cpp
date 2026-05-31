@@ -148,8 +148,8 @@ void moveMouse(float x, float y)
 	accumulatedX += x;
 	accumulatedY += y;
 
-	int applicableX = (int)accumulatedX;
-	int applicableY = (int)accumulatedY;
+	int applicableX = lroundf(accumulatedX);
+	int applicableY = lroundf(accumulatedY);
 
 	accumulatedX -= applicableX;
 	accumulatedY -= applicableY;

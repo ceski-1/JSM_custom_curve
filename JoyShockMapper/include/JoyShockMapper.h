@@ -66,27 +66,52 @@ enum class ButtonID
 	MLEFT,
 	MRIGHT,
 	MRING,
-	TOUCH,   // Touch anywhere on the touchpad
-	LTOUCH,  // Left stick capacitive touch
-	RTOUCH,  // Right stick capacitive touch
-	LMINI,   // Left mini shoulder button
-	RMINI,   // Right mini shoulder button
-	MISC1,   // Additional button that varies by controller
-	MISC2,   // Additional button that varies by controller
-	MISC3,   // Additional button that varies by controller
-	MISC4,   // Additional button that varies by controller
-	MISC5,   // Additional button that varies by controller
-	MISC6,   // Additional button that varies by controller
-	ZLF,     // = FIRST_ANALOG_TRIGGER
-	CAPTURE, // Full press of touchpad touch + press
-	// insert more analog triggers here
-	ZRF,  // =  LAST_ANALOG_TRIGGER
 
-	TUP,
-	TDOWN,
-	TLEFT,
-	TRIGHT,
-	TRING,
+	TOUCH,           // Touch anywhere on the touchpad
+	LTP_TOUCH,       // Touch anywhere on the left trackpad
+	RTP_TOUCH,       // Touch anywhere on the right trackpad
+
+	LTOUCH,          // Left stick capacitive touch
+	RTOUCH,          // Right stick capacitive touch
+	LGRIP,           // Left grip sense (Steam Controller)
+	RGRIP,           // Right grip sense (Steam Controller)
+
+	LMINI,           // Left mini shoulder button
+	RMINI,           // Right mini shoulder button
+
+	MISC1,           // Additional button that varies by controller
+	MISC2,           // Additional button that varies by controller
+	MISC3,           // Additional button that varies by controller
+	MISC4,           // Additional button that varies by controller
+	MISC5,           // Additional button that varies by controller
+	MISC6,           // Additional button that varies by controller
+
+	ZLF,             // = FIRST_ANALOG_TRIGGER
+	CAPTURE,         // Full press of touchpad touch + press
+	LTP_CAPTURE,     // Full press of left trackpad touch + press
+	RTP_CAPTURE,     // Full press of right trackpad touch + press
+	//
+	// Insert more analog triggers here
+	//
+	ZRF,             // =  LAST_ANALOG_TRIGGER
+
+	TUP,             // Touchpad touchstick up
+	TDOWN,           // Touchpad touchstick down
+	TLEFT,           // Touchpad touchstick left
+	TRIGHT,          // Touchpad touchstick right
+	TRING,           // Touchpad touchstick ring
+
+	LTP_UP,          // Left trackpad touchstick up
+	LTP_DOWN,        // Left trackpad touchstick down
+	LTP_LEFT,        // Left trackpad touchstick left
+	LTP_RIGHT,       // Left trackpad touchstick right
+	LTP_RING,        // Left trackpad touchstick ring
+
+	RTP_UP,          // Right trackpad touchstick up
+	RTP_DOWN,        // Right trackpad touchstick down
+	RTP_LEFT,        // Right trackpad touchstick left
+	RTP_RIGHT,       // Right trackpad touchstick right
+	RTP_RING,        // Right trackpad touchstick ring
 
 	SIZE, // Not a button
 
@@ -115,8 +140,70 @@ enum class ButtonID
 	T22,
 	T23,
 	T24,
-	T25,
+	T25, // LAST_TOUCH_BUTTON
+	//
 	// Add as necessary...
+	//
+
+	// Virtual buttons configured on the left trackpad grid (see LTP_MODE and LTP_GRID_SIZE)
+	LTP1,  // FIRST_LTP_BUTTON
+	LTP2,
+	LTP3,
+	LTP4,
+	LTP5,
+	LTP6,
+	LTP7,
+	LTP8,
+	LTP9,
+	LTP10,
+	LTP11,
+	LTP12,
+	LTP13,
+	LTP14,
+	LTP15,
+	LTP16,
+	LTP17,
+	LTP18,
+	LTP19,
+	LTP20,
+	LTP21,
+	LTP22,
+	LTP23,
+	LTP24,
+	LTP25, // LAST_LTP_BUTTON
+	//
+	// Add as necessary...
+	//
+
+	// Virtual buttons configured on the right trackpad grid (see RTP_MODE and RTP_GRID_SIZE)
+	RTP1,  // FIRST_RTP_BUTTON
+	RTP2,
+	RTP3,
+	RTP4,
+	RTP5,
+	RTP6,
+	RTP7,
+	RTP8,
+	RTP9,
+	RTP10,
+	RTP11,
+	RTP12,
+	RTP13,
+	RTP14,
+	RTP15,
+	RTP16,
+	RTP17,
+	RTP18,
+	RTP19,
+	RTP20,
+	RTP21,
+	RTP22,
+	RTP23,
+	RTP24,
+	RTP25, // LAST_RTP_BUTTON
+	//
+	// Add as necessary...
+	//
 };
 
 // help strings for each button
@@ -268,15 +355,51 @@ enum class SettingID
 	RETURN_DEADZONE_ANGLE_CUTOFF,
 	TELEMETRY_ENABLED,
 	TELEMETRY_PORT,
+
+	LTP_DUAL_STAGE_MODE,      // Left trackpad dual stage mode (any of the analog trigger modes), LTP_TOUCH is soft press, LTP_CAPTURE is full press
+	LTP_MODE,                 // Left trackpad mode (GRID_AND_STICK or MOUSE)
+	LTP_GRID_SIZE,            // Left trackpad grid size (rows and columns), uses LTP1 through LTP25
+	LTP_SENS,                 // Left trackpad sensitivity in mouse mode
+	LTP_STICK_MODE,           // Left trackpad touchstick mode (any of the analog stick modes)
+	LTP_DEADZONE_INNER,       // Left trackpad touchstick inner deadzone
+	LTP_RING_MODE,            // Left trackpad touchstick ring type (INNER or OUTER)
+	LTP_STICK_RADIUS,         // Left trackpad touchstick radius size
+	LTP_STICK_AXIS,           // Left trackpad touchstick axis configuration (STANDARD or INVERTED)
+
+	RTP_DUAL_STAGE_MODE,      // Right trackpad dual stage mode (any of the analog trigger modes), RTP_TOUCH is soft press, RTP_CAPTURE is full press
+	RTP_MODE,                 // Right trackpad mode (GRID_AND_STICK or MOUSE)
+	RTP_GRID_SIZE,            // Right trackpad grid size (rows and columns), uses RTP1 through RTP25
+	RTP_SENS,                 // Right trackpad sensitivity in mouse mode
+	RTP_STICK_MODE,           // Right trackpad touchstick mode (any of the analog stick modes)
+	RTP_DEADZONE_INNER,       // Right trackpad touchstick inner deadzone
+	RTP_RING_MODE,            // Right trackpad touchstick ring type (INNER or OUTER)
+	RTP_STICK_RADIUS,         // Right trackpad touchstick radius size
+	RTP_STICK_AXIS,           // Right trackpad touchstick axis configuration (STANDARD or INVERTED)
 };
 
 // constexpr are like #define but with respect to typeness
 constexpr size_t MAX_NO_OF_TOUCH = 2; // Could be obtained from JSL?
 constexpr int MAPPING_SIZE = int(ButtonID::SIZE);
+
 constexpr int FIRST_ANALOG_TRIGGER = int(ButtonID::ZLF);
 constexpr int LAST_ANALOG_TRIGGER = int(ButtonID::ZRF);
-constexpr int FIRST_TOUCH_BUTTON = MAPPING_SIZE + 1;
 constexpr int NUM_ANALOG_TRIGGERS = int(LAST_ANALOG_TRIGGER) - int(FIRST_ANALOG_TRIGGER) + 1;
+
+// Virtual buttons configured on the touchpad grid
+constexpr ButtonID FIRST_TOUCH_BUTTON = ButtonID::T1;
+constexpr ButtonID LAST_TOUCH_BUTTON = ButtonID::T25;
+constexpr int NUM_TOUCH_BUTTONS = int(LAST_TOUCH_BUTTON) - int(FIRST_TOUCH_BUTTON) + 1;
+
+// Virtual buttons configured on the left trackpad grid
+constexpr ButtonID FIRST_LTP_BUTTON = ButtonID::LTP1;
+constexpr ButtonID LAST_LTP_BUTTON = ButtonID::LTP25;
+constexpr int NUM_LTP_BUTTONS = int(LAST_LTP_BUTTON) - int(FIRST_LTP_BUTTON) + 1;
+
+// Virtual buttons configured on the right trackpad grid
+constexpr ButtonID FIRST_RTP_BUTTON = ButtonID::RTP1;
+constexpr ButtonID LAST_RTP_BUTTON = ButtonID::RTP25;
+constexpr int NUM_RTP_BUTTONS = int(LAST_RTP_BUTTON) - int(FIRST_RTP_BUTTON) + 1;
+
 constexpr float MAGIC_TAP_DURATION = 40.0f;           // in milliseconds.
 constexpr float MAGIC_INSTANT_DURATION = 40.0f;       // in milliseconds
 constexpr float MAGIC_EXTENDED_TAP_DURATION = 500.0f; // in milliseconds
