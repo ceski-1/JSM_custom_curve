@@ -1709,8 +1709,6 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 			jc->handleButtonChange(ButtonID::LSR, buttons & (1ULL << JSOFFSET_FNL));                 // L5 back button
 			jc->handleButtonChange(ButtonID::RSL, buttons & (1ULL << JSOFFSET_FNR));                 // R5 back button
 			jc->handleButtonChange(ButtonID::MISC1, buttons & (1ULL << JSOFFSET_MISC1));             // QAM button ("..." button)
-			jc->handleButtonChange(ButtonID::LTP_CAPTURE, buttons & (1ULL << JSOFFSET_LTP_CAPTURE)); // Left trackpad click
-			jc->handleButtonChange(ButtonID::RTP_CAPTURE, buttons & (1ULL << JSOFFSET_RTP_CAPTURE)); // Right trackpad click
 			jc->handleButtonChange(ButtonID::LTOUCH, buttons & (1ULL << JSOFFSET_LTOUCH));           // Left stick capacitive touch
 			jc->handleButtonChange(ButtonID::RTOUCH, buttons & (1ULL << JSOFFSET_RTOUCH));           // Right stick capacitive touch
 			// Left/right trackpad touch triggers
