@@ -1691,6 +1691,13 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		case JS_TYPE_STEAM_CONTROLLER:
 			jc->handleButtonChange(ButtonID::LSL, buttons & (1ULL << JSOFFSET_SL));      // Left back grip button
 			jc->handleButtonChange(ButtonID::RSR, buttons & (1ULL << JSOFFSET_SR));      // Right back grip button
+			// Left/right trackpad touch triggers
+			{
+				const float left_triggerpos = GetTrackpadTrigger(jc, buttons, true);
+				jc->handleTriggerChange(ButtonID::LTP_TOUCH, ButtonID::LTP_CAPTURE, jc->getSetting<TriggerMode>(SettingID::LTP_DUAL_STAGE_MODE), left_triggerpos, jc->_unusedEffect);
+				const float right_triggerpos = GetTrackpadTrigger(jc, buttons, false);
+				jc->handleTriggerChange(ButtonID::RTP_TOUCH, ButtonID::RTP_CAPTURE, jc->getSetting<TriggerMode>(SettingID::RTP_DUAL_STAGE_MODE), right_triggerpos, jc->_unusedEffect);
+			}
 			break;
 		case JS_TYPE_STEAM_CONTROLLER_TRITON:
 			jc->handleButtonChange(ButtonID::LGRIP, buttons & (1ULL << JSOFFSET_LGRIP)); // Left grip sense
